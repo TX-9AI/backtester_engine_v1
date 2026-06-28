@@ -5,6 +5,8 @@
 # v1.1 — 2026-06-28 — Correct repo URL (backtester_engine_v1), .gitignore compliance
 # v1.2 — 2026-06-28 — Step 3: optional crypto_trader strategy file pull from GitHub
 #                      Auto-detects latest crypto_trader_v* repo under TX-9AI
+# v1.3 — 2026-06-28 — Fix: strip full URL from GITHUB_REPO input (accept slug or full URL)
+#                      Fix: API auth token passed correctly to org repo search
 # =============================================================================
 
 export DEBIAN_FRONTEND=noninteractive
@@ -63,6 +65,10 @@ GITHUB_TOKEN=""
 printf "    GitHub repo [e.g. TX-9AI/backtester_engine_v1, ENTER to skip]: "; read -r GITHUB_REPO
 
 if [[ -n "$GITHUB_REPO" ]]; then
+    # Strip full URL if user pasted it — keep only the slug (owner/repo)
+    GITHUB_REPO="${GITHUB_REPO#https://github.com/}"
+    GITHUB_REPO="${GITHUB_REPO#http://github.com/}"
+    GITHUB_REPO="${GITHUB_REPO%/}"
     echo ""
     read -rsp "    GitHub Personal Access Token (paste, ENTER): " GITHUB_TOKEN; echo ""
     print_ok "GitHub repo: https://github.com/${GITHUB_REPO}"
@@ -92,34 +98,26 @@ if [[ "$PULL_STRATEGY" =~ ^[Yy] ]]; then
 
     # Auto-detect latest crypto_trader_v* repo via GitHub API
     print_info "Searching for latest crypto_trader_v* repo under ${GH_ORG}..."
+
+    API_AUTH=""
+    [[ -n "$CT_TOKEN" ]] && API_AUTH="-H \"Authorization: token ${CT_TOKEN}\""
+
     CT_REPO=$(curl -fsSL \
-        -H "Authorization: token ${CT_TOKEN}" \
         -H "Accept: application/vnd.github+json" \
+        ${CT_TOKEN:+-H "Authorization: token ${CT_TOKEN}"} \
         "https://api.github.com/orgs/${GH_ORG}/repos?per_page=100" 2>/dev/null \
         | python3 -c "
 import sys, json
-repos = json.load(sys.stdin)
-matches = sorted(
-    [r['name'] for r in repos if r['name'].startswith('crypto_trader_v')],
-    reverse=True
-)
-print(matches[0] if matches else '')
+try:
+    repos = json.load(sys.stdin)
+    matches = sorted(
+        [r['name'] for r in repos if r['name'].startswith('crypto_trader_v')],
+        reverse=True
+    )
+    print(matches[0] if matches else '')
+except Exception:
+    print('')
 " 2>/dev/null)
-
-    if [[ -z "$CT_REPO" ]]; then
-        print_warn "Could not auto-detect crypto_trader repo. Trying without auth..."
-        CT_REPO=$(curl -fsSL \
-            "https://api.github.com/orgs/${GH_ORG}/repos?per_page=100" 2>/dev/null \
-            | python3 -c "
-import sys, json
-repos = json.load(sys.stdin)
-matches = sorted(
-    [r['name'] for r in repos if r['name'].startswith('crypto_trader_v')],
-    reverse=True
-)
-print(matches[0] if matches else '')
-" 2>/dev/null)
-    fi
 
     if [[ -z "$CT_REPO" ]]; then
         print_warn "Could not find a crypto_trader_v* repo. Skipping strategy pull."
