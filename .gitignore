@@ -43,7 +43,11 @@ build/
 .DS_Store
 Thumbs.db
 
-# ── Deployment artifacts ──────────────────────────────────────────────────────
-*.tar.gz
+# ── Test / diagnostic scripts — not part of release ──────────────────────────
+test_kraken.py
+test_kraken2.py
+
+# ── Kraken data download — too large for GitHub ───────────────────────────────
 *.zip
-*.bat
+Kraken_OHLCVT/
+kraken_raw/
