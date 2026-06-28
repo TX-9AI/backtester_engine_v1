@@ -25,6 +25,7 @@
 # v1.14 — 2026-06-28 — Remove: notifications/ package from crypto_trader copy
 #                       telegram_sender.py calls git subprocess on import causing fatal: bad revision 'HEAD'
 # v1.15 — 2026-06-28 — Fix: strip /tree/main and /blob/main suffixes from pasted GitHub URLs
+# v1.16 — 2026-06-28 — Fix: create initial git commit after init to prevent 'fatal: bad revision HEAD'
 # =============================================================================
 
 export DEBIAN_FRONTEND=noninteractive
@@ -256,6 +257,10 @@ cd "$INSTALL_DIR"
 if [ ! -d ".git" ]; then
     git init -q
     git branch -M main 2>/dev/null || true
+    git config user.email "backtester@vertigo-capital.local" 2>/dev/null || true
+    git config user.name "Vertigo Capital" 2>/dev/null || true
+    git add -A 2>/dev/null || true
+    git commit -q -m "backtester_engine_v1 — initial install" 2>/dev/null || true
     if [[ -n "$GITHUB_REPO" ]]; then
         git remote add origin "https://${GITHUB_TOKEN}@github.com/${GITHUB_REPO}.git"
         print_ok "Git repo initialized — push.sh ready to use"
