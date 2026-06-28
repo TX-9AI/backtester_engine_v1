@@ -1,5 +1,8 @@
-# replay.py — btc_backtester
+# backtest/replay.py — backtester_engine_v1
 # v1.0 — 2026-06-28 — Sequential candle replay through bot strategy stack
+# v1.1 — 2026-06-28 — Perf: resample higher TFs only on candle boundary, not every tick
+#                      Use deque for rolling window, avoid full DataFrame rebuild each candle
+# v1.2 — 2026-06-28 — Add: progress bar with candle count, trades, balance, elapsed time
 
 """
 Feeds historical 1m OHLCV candles into the strategy code one candle at a time,
@@ -20,6 +23,7 @@ Key design decisions:
 """
 
 import logging
+from collections import deque
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Optional
@@ -95,29 +99,57 @@ class ReplayConfig:
 class CandleBuffer:
     """
     Maintains a rolling window of OHLCV candles per timeframe.
-    1m is fed directly. Higher TFs are resampled from 1m history.
+    1m is fed directly. Higher TFs are resampled only when a new
+    higher-TF candle boundary is crossed — not on every 1m tick.
     """
 
     def __init__(self):
-        self._1m_history: list[dict] = []   # Full 1m history for resampling
+        # Rolling deque capped at max window size needed for resampling
+        # Keep enough 1m candles to build the largest TF window
+        max_1m = max(WINDOW_SIZES["1m"],
+                     WINDOW_SIZES["1h"]  * 60,
+                     WINDOW_SIZES["15m"] * 15,
+                     WINDOW_SIZES["5m"]  * 5,
+                     WINDOW_SIZES["1d"]  * 1440)
+        self._1m_history: deque = deque(maxlen=max_1m)
         self.windows: dict[str, pd.DataFrame] = {tf: pd.DataFrame() for tf in WINDOW_SIZES}
+        self._last_tf_minute: dict[str, int] = {}   # last candle minute per TF
 
     def push(self, candle: dict) -> None:
-        """Ingest a new closed 1m candle and update all timeframe windows."""
+        """Ingest a new closed 1m candle. Resample higher TFs only on boundary."""
         self._1m_history.append(candle)
 
-        # Keep 1m window
-        df_1m = pd.DataFrame(self._1m_history[-WINDOW_SIZES["1m"]:])
-        self.windows["1m"] = df_1m
+        # Always update 1m window
+        self.windows["1m"] = pd.DataFrame(list(self._1m_history)[-WINDOW_SIZES["1m"]:])
 
-        # Resample higher timeframes
-        if len(self._1m_history) >= 2:
-            full_1m = pd.DataFrame(self._1m_history)
-            full_1m["timestamp"] = pd.to_datetime(full_1m["timestamp"], utc=True)
-            full_1m = full_1m.set_index("timestamp")
+        # Only resample a higher TF when its boundary is crossed
+        if len(self._1m_history) < 2:
+            return
 
-            for tf, minutes in RESAMPLE_MAP.items():
-                rule = f"{minutes}min"
+        ts = pd.to_datetime(candle["timestamp"], utc=True)
+        minute_of_day = ts.hour * 60 + ts.minute
+
+        needs_resample = False
+        for tf, minutes in RESAMPLE_MAP.items():
+            last = self._last_tf_minute.get(tf, -1)
+            current_period = (minute_of_day // minutes) * minutes
+            if current_period != last:
+                self._last_tf_minute[tf] = current_period
+                needs_resample = True
+                break   # one resample call covers all TFs
+
+        if not needs_resample:
+            return
+
+        # Build DataFrame once and resample all TFs from it
+        history_list = list(self._1m_history)
+        full_1m = pd.DataFrame(history_list)
+        full_1m["timestamp"] = pd.to_datetime(full_1m["timestamp"], utc=True)
+        full_1m = full_1m.set_index("timestamp")
+
+        for tf, minutes in RESAMPLE_MAP.items():
+            rule = f"{minutes}min"
+            try:
                 resampled = full_1m.resample(rule, closed="right", label="right").agg({
                     "open":   "first",
                     "high":   "max",
@@ -125,13 +157,14 @@ class CandleBuffer:
                     "close":  "last",
                     "volume": "sum",
                 }).dropna()
-                resampled = resampled.reset_index()
-                self.windows[tf] = resampled.tail(WINDOW_SIZES[tf]).reset_index(drop=True)
+                self.windows[tf] = resampled.reset_index().tail(
+                    WINDOW_SIZES[tf]).reset_index(drop=True)
+            except Exception:
+                pass
 
     def ready(self) -> bool:
         """True once we have enough candles to compute indicators reliably."""
-        min_1m = 200   # Need 200 1m candles for EMA-200, VWAP, etc.
-        return len(self._1m_history) >= min_1m
+        return len(self._1m_history) >= 200
 
     def get(self, tf: str) -> pd.DataFrame:
         return self.windows.get(tf, pd.DataFrame())
@@ -215,13 +248,40 @@ class ReplayEngine:
         Feed entire DataFrame of 1m candles through the replay engine.
         Returns list of completed trade dicts.
         """
-        logger.info(f"[Replay] Starting replay: {len(df):,} candles | "
+        import sys
+        import time
+
+        total    = len(df)
+        bar_width = 30
+        start_t  = time.time()
+
+        logger.info(f"[Replay] Starting replay: {total:,} candles | "
                     f"Balance: ${self.cash_balance:,.2f}")
 
-        for _, row in df.iterrows():
+        for i, (_, row) in enumerate(df.iterrows()):
             candle = row.to_dict()
             self._process_candle(candle)
             self._candle_index += 1
+
+            # Progress bar every 500 candles
+            if i % 500 == 0 or i == total - 1:
+                pct      = (i + 1) / total
+                filled   = int(bar_width * pct)
+                bar      = "█" * filled + "░" * (bar_width - filled)
+                elapsed  = time.time() - start_t
+                trades   = len(self.completed_trades)
+                balance  = self.cash_balance
+                sys.stdout.write(
+                    f"\r  [{bar}] {pct*100:5.1f}%  "
+                    f"{i+1:,}/{total:,}  "
+                    f"trades={trades}  "
+                    f"balance=${balance:,.0f}  "
+                    f"{elapsed:.0f}s"
+                )
+                sys.stdout.flush()
+
+        sys.stdout.write("\n")
+        sys.stdout.flush()
 
         # Force-close any open position at end of data
         if self.open_position is not None:
