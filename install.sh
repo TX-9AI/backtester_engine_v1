@@ -24,6 +24,7 @@
 # v1.13 — 2026-06-28 — Remove: disk expansion step (set EBS volume size at EC2 launch instead)
 # v1.14 — 2026-06-28 — Remove: notifications/ package from crypto_trader copy
 #                       telegram_sender.py calls git subprocess on import causing fatal: bad revision 'HEAD'
+# v1.15 — 2026-06-28 — Fix: strip /tree/main and /blob/main suffixes from pasted GitHub URLs
 # =============================================================================
 
 export DEBIAN_FRONTEND=noninteractive
@@ -86,6 +87,10 @@ if [[ -n "$GITHUB_REPO" ]]; then
     GITHUB_REPO="${GITHUB_REPO#https://github.com/}"
     GITHUB_REPO="${GITHUB_REPO#http://github.com/}"
     GITHUB_REPO="${GITHUB_REPO%/}"
+    # Strip any /tree/... or /blob/... path suffixes
+    GITHUB_REPO=$(echo "$GITHUB_REPO" | sed 's|/tree/.*||' | sed 's|/blob/.*||')
+    # Keep only owner/repo (first two path segments)
+    GITHUB_REPO=$(echo "$GITHUB_REPO" | cut -d'/' -f1,2)
     echo ""
     read -rsp "    GitHub Personal Access Token (paste, ENTER): " GITHUB_TOKEN; echo ""
     print_ok "GitHub repo: https://github.com/${GITHUB_REPO}"
