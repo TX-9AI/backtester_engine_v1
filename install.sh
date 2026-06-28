@@ -22,6 +22,8 @@
 #                       Fix: file validation check config.py → bt_config.py
 #                       Add: gdown to pip install
 # v1.13 — 2026-06-28 — Remove: disk expansion step (set EBS volume size at EC2 launch instead)
+# v1.14 — 2026-06-28 — Remove: notifications/ package from crypto_trader copy
+#                       telegram_sender.py calls git subprocess on import causing fatal: bad revision 'HEAD'
 # =============================================================================
 
 export DEBIAN_FRONTEND=noninteractive
@@ -144,7 +146,7 @@ except Exception:
             COPIED=0
             MISSING=0
 
-            for pkg in analysis data database execution notifications risk strategy utils; do
+            for pkg in analysis data database execution risk strategy utils; do
                 src="$CT_DEPLOY/$pkg"
                 dest="$INSTALL_DIR/crypto_trader/$pkg"
                 if [ -d "$src" ]; then
