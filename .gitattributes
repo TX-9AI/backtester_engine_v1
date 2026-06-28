@@ -1,0 +1,8 @@
+# .gitattributes — backtester_engine_v1
+# v1.0 — 2026-06-28 — Enforce LF line endings on shell scripts
+
+*.sh   text eol=lf
+*.py   text eol=lf
+*.md   text eol=lf
+*.txt  text eol=lf
+*.json text eol=lf
