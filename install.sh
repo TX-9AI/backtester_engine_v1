@@ -7,6 +7,7 @@
 #                      Auto-detects latest crypto_trader_v* repo under TX-9AI
 # v1.3 — 2026-06-28 — Fix: strip full URL from GITHUB_REPO input (accept slug or full URL)
 #                      Fix: API auth token passed correctly to org repo search
+# v1.4 — 2026-06-28 — Fix: GitHub API endpoint /orgs/ → /users/ (TX-9AI is a user not an org)
 # =============================================================================
 
 export DEBIAN_FRONTEND=noninteractive
@@ -105,7 +106,7 @@ if [[ "$PULL_STRATEGY" =~ ^[Yy] ]]; then
     CT_REPO=$(curl -fsSL \
         -H "Accept: application/vnd.github+json" \
         ${CT_TOKEN:+-H "Authorization: token ${CT_TOKEN}"} \
-        "https://api.github.com/orgs/${GH_ORG}/repos?per_page=100" 2>/dev/null \
+        "https://api.github.com/users/${GH_ORG}/repos?per_page=100" 2>/dev/null \
         | python3 -c "
 import sys, json
 try:
