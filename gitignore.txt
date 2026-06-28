@@ -1,0 +1,53 @@
+# =============================================================================
+# .gitignore — backtester_engine_v1
+# v1.0 — 2026-06-28 — Initial gitignore
+# =============================================================================
+
+# ── Secrets — NEVER commit ────────────────────────────────────────────────────
+credentials.py
+*.pem
+*.key
+*.env
+.env.*
+
+# ── Runtime data — generated locally, not versioned ──────────────────────────
+data/cache/
+data/backtest_results.db
+data/*.db
+data/*.db-shm
+data/*.db-wal
+reports/output/
+*.log
+*.log.*
+
+# ── Python ────────────────────────────────────────────────────────────────────
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+venv/
+env/
+.venv/
+*.egg-info/
+dist/
+build/
+
+# ── IDE ───────────────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ── OS ────────────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ── Test / diagnostic scripts — not part of release ──────────────────────────
+test_kraken.py
+test_kraken2.py
+
+# ── Kraken data download — too large for GitHub ───────────────────────────────
+*.zip
+Kraken_OHLCVT/
+kraken_raw/
