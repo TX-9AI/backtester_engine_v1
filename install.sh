@@ -8,6 +8,8 @@
 # v1.3 — 2026-06-28 — Fix: strip full URL from GITHUB_REPO input (accept slug or full URL)
 #                      Fix: API auth token passed correctly to org repo search
 # v1.4 — 2026-06-28 — Fix: GitHub API endpoint /orgs/ → /users/ (TX-9AI is a user not an org)
+# v1.5 — 2026-06-28 — Replace manual quarter display with status.py dashboard
+# v1.6 — 2026-06-28 — Fix: embed GitHub token in remote URL so push never prompts for credentials
 # =============================================================================
 
 export DEBIAN_FRONTEND=noninteractive
@@ -246,7 +248,7 @@ if [ ! -d ".git" ]; then
     git init -q
     git branch -M main 2>/dev/null || true
     if [[ -n "$GITHUB_REPO" ]]; then
-        git remote add origin "https://github.com/${GITHUB_REPO}.git"
+        git remote add origin "https://${GITHUB_TOKEN}@github.com/${GITHUB_REPO}.git"
         print_ok "Git repo initialized — push.sh ready to use"
     else
         print_ok "Git initialized — add remote manually when ready"
@@ -284,16 +286,6 @@ echo ""
 
 source "${VENV}/bin/activate"
 cd "$INSTALL_DIR"
+python status.py
 
-echo -e "  ${CYAN}Available quarters:${RESET}"
-python -c "
-from backtest.data_fetcher import DataFetcher
-f = DataFetcher()
-qs = f.list_available_quarters()
-cached = sum(1 for q in qs if f.is_cached(q))
-print(f'    {len(qs)} quarters available ({cached} cached)')
-print(f'    Earliest: {qs[0]}  |  Latest: {qs[-1]}')
-" 2>/dev/null || echo "    (run python main.py to see quarters)"
-
-echo ""
 exec bash
