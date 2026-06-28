@@ -1,6 +1,7 @@
 # status.py — backtester_engine_v1
 # v1.0 — 2026-06-28 — Session dashboard: current config, cached quarters, DB summary
 # v1.1 — 2026-06-28 — Import bt_config instead of config to avoid shadowing crypto_trader/config.py
+# v1.2 — 2026-06-28 — Fix: count strategy subdirectory packages not just root .py files
 
 """
 Displays a clean pre-flight dashboard of the current backtester state.
@@ -61,8 +62,16 @@ def get_strategy_files():
     ct_dir = Path(__file__).parent / "crypto_trader"
     if not ct_dir.exists():
         return [], False
-    files = [f.name for f in ct_dir.glob("*.py") if f.name != "__init__.py"]
-    return sorted(files), len(files) > 0
+    # Count packages (subdirectories with __init__.py)
+    packages = [d.name for d in ct_dir.iterdir()
+                if d.is_dir() and (d / "__init__.py").exists()
+                and d.name != "__pycache__"]
+    # Count root-level files
+    root_files = [f.name for f in ct_dir.glob("*.py") if f.name != "__init__.py"]
+    total_py = sum(len(list(d.rglob("*.py")))
+                   for d in ct_dir.iterdir() if d.is_dir()) + len(root_files)
+    summary = sorted(packages) + sorted(root_files)
+    return summary, len(summary) > 0, total_py
 
 def get_cached_quarters(fetcher, available):
     cached   = [q for q in available if fetcher.is_cached(q)]
@@ -78,7 +87,7 @@ def main():
     available = fetcher.list_available_quarters()
     cached, uncached = get_cached_quarters(fetcher, available)
     db_summary = get_db_summary()
-    strategy_files, strategy_ready = get_strategy_files()
+    strategy_files, strategy_ready, total_py = get_strategy_files()
 
     print()
     print(col("╔══════════════════════════════════════════════════════════╗", CYAN))
@@ -136,9 +145,10 @@ def main():
     print(bold("  STRATEGY FILES  (crypto_trader/)"))
     print(sep())
     if strategy_ready:
-        print(ok(f"{len(strategy_files)} files loaded"))
+        print(ok(f"{total_py} files across {len([f for f in strategy_files if '.' not in f])} packages + root files"))
         for f in strategy_files:
-            print(f"       {DIM}{f}{RESET}")
+            marker = "📦" if "." not in f else "  "
+            print(f"       {DIM}{marker} {f}{RESET}")
     else:
         print(warn("No strategy files found in crypto_trader/"))
         print(f"  {DIM}Re-run install.sh and answer Y at Step 3{RESET}")

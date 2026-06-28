@@ -23,9 +23,13 @@
 #                       Add: gdown to pip install
 # v1.13 — 2026-06-28 — Remove: disk expansion step (set EBS volume size at EC2 launch instead)
 # v1.14 — 2026-06-28 — Remove: notifications/ package from crypto_trader copy
-#                       telegram_sender.py calls git subprocess on import causing fatal: bad revision 'HEAD'
+#                       telegram_sender.py calls git subprocess on import causing fatal: bad revision HEAD
 # v1.15 — 2026-06-28 — Fix: strip /tree/main and /blob/main suffixes from pasted GitHub URLs
-# v1.16 — 2026-06-28 — Fix: create initial git commit after init to prevent 'fatal: bad revision HEAD'
+# v1.16 — 2026-06-28 — Fix: create initial git commit after init to prevent fatal: bad revision HEAD
+# v1.17 — 2026-06-28 — Add: tmux session wrapper so backtest survives SSH disconnect
+#                       Add: auto-run load_kraken_csv.py immediately after successful download
+#                       Add: pip install --upgrade pip with uv fallback for faster installs
+#                       Add: tmux install to system packages
 # =============================================================================
 
 export DEBIAN_FRONTEND=noninteractive
@@ -38,6 +42,7 @@ VENV="$INSTALL_DIR/venv"
 GH_ORG="TX-9AI"
 KRAKEN_ZIP_ID="1ptNqWYidLkhb2VAKuLCxmp2OXEfGO-AP"
 KRAKEN_ZIP="$HOME/Kraken_OHLCVT.zip"
+TMUX_SESSION="backtester"
 
 exec < /dev/tty
 
@@ -88,9 +93,7 @@ if [[ -n "$GITHUB_REPO" ]]; then
     GITHUB_REPO="${GITHUB_REPO#https://github.com/}"
     GITHUB_REPO="${GITHUB_REPO#http://github.com/}"
     GITHUB_REPO="${GITHUB_REPO%/}"
-    # Strip any /tree/... or /blob/... path suffixes
     GITHUB_REPO=$(echo "$GITHUB_REPO" | sed 's|/tree/.*||' | sed 's|/blob/.*||')
-    # Keep only owner/repo (first two path segments)
     GITHUB_REPO=$(echo "$GITHUB_REPO" | cut -d'/' -f1,2)
     echo ""
     read -rsp "    GitHub Personal Access Token (paste, ENTER): " GITHUB_TOKEN; echo ""
@@ -192,7 +195,7 @@ print_step "4/8" "System packages"
 sudo apt-get update -qq
 sudo apt-get install -y -qq \
     python3 python3-pip python3-venv python-is-python3 \
-    git rsync bc sqlite3 curl wget
+    git rsync bc sqlite3 curl wget tmux
 print_ok "System packages ready."
 
 # ─── STEP 5: CLONE & INSTALL BACKTESTER FILES ─────────────────────────────────
@@ -232,26 +235,36 @@ for f in main.py bt_config.py backtest/data_fetcher.py backtest/replay.py; do
 done
 print_ok "Files installed to ${INSTALL_DIR}"
 
-# ─── STEP 7: PYTHON ENVIRONMENT ───────────────────────────────────────────────
+# ─── STEP 6: PYTHON ENVIRONMENT ───────────────────────────────────────────────
 print_step "6/8" "Python environment"
 python3 -m venv "$VENV"
 source "$VENV/bin/activate"
-pip install --upgrade pip -q
-pip install ccxt pandas numpy matplotlib plotly reportlab scipy \
-    requests tzdata yfinance gdown -q
+
+# Try uv for fast parallel installs, fall back to pip
+if pip install uv -q 2>/dev/null; then
+    print_info "Using uv for fast parallel installs..."
+    uv pip install ccxt pandas numpy matplotlib plotly reportlab scipy \
+        requests tzdata yfinance gdown -q 2>/dev/null || \
+    pip install ccxt pandas numpy matplotlib plotly reportlab scipy \
+        requests tzdata yfinance gdown -q
+else
+    pip install --upgrade pip -q
+    pip install ccxt pandas numpy matplotlib plotly reportlab scipy \
+        requests tzdata yfinance gdown -q
+fi
 print_ok "Dependencies installed."
 
 grep -q "btc-backtester/venv" ~/.bashrc || echo "source $VENV/bin/activate" >> ~/.bashrc
 grep -q "cd ~/btc-backtester"  ~/.bashrc || echo "cd $INSTALL_DIR"           >> ~/.bashrc
 
-# ─── STEP 8: WRITE SESSION CONFIG ─────────────────────────────────────────────
+# ─── STEP 7: SESSION CONFIG ───────────────────────────────────────────────────
 print_step "7/8" "Writing session config"
 sed -i "s/^DEFAULT_STARTING_BALANCE.*/DEFAULT_STARTING_BALANCE  = ${BALANCE_INPUT}/" \
     "$INSTALL_DIR/bt_config.py"
 print_ok "bt_config.py updated — default balance \$${BALANCE_INPUT}"
 
-# ─── STEP 9: GIT INIT + KRAKEN DATA DOWNLOAD ──────────────────────────────────
-print_step "8/8" "Git setup + Kraken historical data download"
+# ─── STEP 8: GIT INIT + DATA DOWNLOAD + TMUX ──────────────────────────────────
+print_step "8/8" "Git setup + data download + tmux session"
 
 cd "$INSTALL_DIR"
 if [ ! -d ".git" ]; then
@@ -269,35 +282,48 @@ if [ ! -d ".git" ]; then
     fi
 fi
 
-# Download Kraken OHLCVT full history
+# ── Kraken data download ──────────────────────────────────────────────────────
 echo ""
 echo -e "  Kraken provides official historical OHLCVT data (all pairs, all timeframes)."
-echo -e "  This is the data source for backtesting — ~8GB download, stored in ~/data/."
-echo -e "  Download now? Requires ~20GB free disk space during extraction."
+echo -e "  Download now? (~7GB, 10-20 min) — will auto-process into cache when done."
 echo ""
 printf "    Download Kraken OHLCVT history? [Y/n, default=Y]: "; read -r DOWNLOAD_DATA
 DOWNLOAD_DATA="${DOWNLOAD_DATA:-Y}"
 
+DATA_READY=false
 if [[ "$DOWNLOAD_DATA" =~ ^[Yy] ]]; then
-    print_info "Downloading Kraken_OHLCVT.zip from Google Drive..."
-    print_info "This will take 10-20 minutes depending on connection speed."
-    echo ""
-    gdown "${KRAKEN_ZIP_ID}" -O "${KRAKEN_ZIP}"
 
+    # Check if ZIP already sitting in home dir (manual SFTP upload)
     if [ -f "${KRAKEN_ZIP}" ]; then
         ZIP_SIZE=$(du -sh "${KRAKEN_ZIP}" | cut -f1)
-        print_ok "Download complete: ${KRAKEN_ZIP} (${ZIP_SIZE})"
-        echo ""
-        print_info "Run the following to process the data into quarterly cache files:"
-        echo ""
-        echo -e "    ${CYAN}python load_kraken_csv.py${RESET}"
-        echo ""
-        print_info "This will extract XBTUSD 1m data, split by quarter, and delete the ZIP."
+        print_ok "Found existing ZIP: ${KRAKEN_ZIP} (${ZIP_SIZE}) — skipping download"
+        DATA_READY=true
     else
-        print_warn "Download failed. Run manually: gdown ${KRAKEN_ZIP_ID}"
+        print_info "Attempting gdown download from Google Drive..."
+        print_info "If this fails, SFTP Kraken_OHLCVT.zip to ~/ and re-run: python load_kraken_csv.py"
+        echo ""
+        gdown "${KRAKEN_ZIP_ID}" -O "${KRAKEN_ZIP}" 2>&1
+
+        if [ -f "${KRAKEN_ZIP}" ]; then
+            ZIP_SIZE=$(du -sh "${KRAKEN_ZIP}" | cut -f1)
+            print_ok "Download complete: ${ZIP_SIZE}"
+            DATA_READY=true
+        else
+            print_warn "gdown failed — SFTP Kraken_OHLCVT.zip to ~/ then run: python load_kraken_csv.py"
+        fi
+    fi
+
+    # Auto-process ZIP into quarterly cache files
+    if [ "$DATA_READY" = true ]; then
+        echo ""
+        print_info "Processing ZIP into quarterly cache files..."
+        print_info "This takes 2-5 minutes — streaming 4.6M rows in chunks..."
+        echo ""
+        source "$VENV/bin/activate"
+        python "$INSTALL_DIR/load_kraken_csv.py"
     fi
 else
-    print_ok "Skipping data download — run 'gdown ${KRAKEN_ZIP_ID}' when ready."
+    print_ok "Skipping — SFTP Kraken_OHLCVT.zip to ~/ then run: python load_kraken_csv.py"
 fi
 
 # ── Final status ───────────────────────────────────────────────────────────────
@@ -317,14 +343,27 @@ else
     echo -e "  Strategy files:   ${INSTALL_DIR}/crypto_trader/  ○ not pulled — copy manually"
 fi
 echo ""
-echo -e "  Next steps:"
-echo -e "    python load_kraken_csv.py         — process downloaded data into cache"
-echo -e "    python fetch_data.py --status     — check cache status"
-echo -e "    python main.py --quarter 2025-Q1  — run a backtest"
+echo -e "  ${BOLD}tmux commands:${RESET}"
+echo -e "    tmux new -s backtester          — new persistent session"
+echo -e "    tmux attach -t backtester        — re-attach after disconnect"
+echo -e "    Ctrl+B then D                    — detach (leaves running)"
 echo ""
 
 source "${VENV}/bin/activate"
 cd "$INSTALL_DIR"
 python status.py
 
-exec bash
+# ── Launch tmux session ────────────────────────────────────────────────────────
+echo ""
+echo -e "  ${CYAN}Launching tmux session '${TMUX_SESSION}' — backtests survive SSH disconnect.${RESET}"
+echo -e "  ${CYAN}To detach: Ctrl+B then D  |  To re-attach: tmux attach -t ${TMUX_SESSION}${RESET}"
+echo ""
+
+# Kill existing session if present
+tmux kill-session -t "$TMUX_SESSION" 2>/dev/null || true
+
+# Launch new tmux session with venv activated in project dir
+tmux new-session -d -s "$TMUX_SESSION" -x 220 -y 50 \
+    "source ${VENV}/bin/activate && cd ${INSTALL_DIR} && exec bash"
+
+tmux attach -t "$TMUX_SESSION"
