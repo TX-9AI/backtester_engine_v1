@@ -18,10 +18,10 @@
 #                       notifications, risk, strategy, utils) — not just subset
 # v1.10 — 2026-06-28 — Fix: add tzdata to pip install (required by utils/time_utils.py ZoneInfo)
 # v1.11 — 2026-06-28 — Fix: add yfinance to pip install (required by macro_data.py)
-# v1.12 — 2026-06-28 — Add: disk expansion (growpart + resize2fs) before any downloads
-#                       Add: gdown install + Kraken OHLCVT full history download
+# v1.12 — 2026-06-28 — Add: gdown install + Kraken OHLCVT full history download
 #                       Fix: file validation check config.py → bt_config.py
 #                       Add: gdown to pip install
+# v1.13 — 2026-06-28 — Remove: disk expansion step (set EBS volume size at EC2 launch instead)
 # =============================================================================
 
 export DEBIAN_FRONTEND=noninteractive
@@ -59,7 +59,7 @@ echo ""
 read -rp "  Press ENTER to continue or Ctrl+C to cancel..."
 
 # ─── STEP 1: STARTING BALANCE ─────────────────────────────────────────────────
-print_step "1/9" "Session Starting Balance"
+print_step "1/8" "Session Starting Balance"
 echo ""
 echo -e "  Default starting balance for backtest sessions."
 echo -e "  You can change it interactively at the start of any run."
@@ -74,7 +74,7 @@ BUYING_POWER=$(echo "$BALANCE_INPUT * 10" | bc)
 print_ok "Default balance: \$${BALANCE_INPUT} → \$${BUYING_POWER} buying power (10x)"
 
 # ─── STEP 2: GITHUB REPO & TOKEN ──────────────────────────────────────────────
-print_step "2/9" "GitHub Repository"
+print_step "2/8" "GitHub Repository"
 echo ""
 GITHUB_REPO=""
 GITHUB_TOKEN=""
@@ -93,7 +93,7 @@ else
 fi
 
 # ─── STEP 3: CRYPTO_TRADER STRATEGY FILES ─────────────────────────────────────
-print_step "3/9" "crypto_trader Strategy Files (optional)"
+print_step "3/8" "crypto_trader Strategy Files (optional)"
 echo ""
 echo -e "  The backtester replays trades through the live bot's strategy stack."
 echo -e "  Pull the strategy files now from the latest crypto_trader repo?"
@@ -180,40 +180,15 @@ else
 fi
 
 # ─── STEP 4: SYSTEM PACKAGES ──────────────────────────────────────────────────
-print_step "4/9" "System packages"
+print_step "4/8" "System packages"
 sudo apt-get update -qq
 sudo apt-get install -y -qq \
     python3 python3-pip python3-venv python-is-python3 \
-    git rsync bc sqlite3 curl wget \
-    cloud-guest-utils   # provides growpart
+    git rsync bc sqlite3 curl wget
 print_ok "System packages ready."
 
-# ─── STEP 5: EXPAND DISK ──────────────────────────────────────────────────────
-print_step "5/9" "Expanding disk to full allocated size"
-echo ""
-DISK=$(lsblk -ndo NAME,TYPE | awk '$2=="disk"{print $1}' | head -1)
-PART="${DISK}1"
-print_info "Detected disk: /dev/${DISK}  partition: /dev/${PART}"
-
-sudo growpart /dev/${DISK} 1 2>/dev/null && print_ok "growpart complete" \
-    || print_warn "growpart — partition may already be at full size"
-
-# Detect filesystem type and resize accordingly
-FSTYPE=$(df -T / | awk 'NR==2{print $2}')
-if [[ "$FSTYPE" == "ext4" || "$FSTYPE" == "ext3" || "$FSTYPE" == "ext2" ]]; then
-    sudo resize2fs /dev/${PART} 2>/dev/null && print_ok "resize2fs complete" \
-        || print_warn "resize2fs — may already be at full size"
-elif [[ "$FSTYPE" == "xfs" ]]; then
-    sudo xfs_growfs / 2>/dev/null && print_ok "xfs_growfs complete" \
-        || print_warn "xfs_growfs — may already be at full size"
-else
-    print_warn "Unknown filesystem type: $FSTYPE — skip resize"
-fi
-
-df -h / | awk 'NR==2{printf "  Available: %s of %s (%s used)\n", $4, $2, $5}'
-
-# ─── STEP 6: CLONE & INSTALL BACKTESTER FILES ─────────────────────────────────
-print_step "6/9" "Installing backtester files"
+# ─── STEP 5: CLONE & INSTALL BACKTESTER FILES ─────────────────────────────────
+print_step "5/8" "Installing backtester files"
 
 if [ -d "$DEPLOY_DIR/.git" ]; then
     echo "  Updating existing repo..."
@@ -250,7 +225,7 @@ done
 print_ok "Files installed to ${INSTALL_DIR}"
 
 # ─── STEP 7: PYTHON ENVIRONMENT ───────────────────────────────────────────────
-print_step "7/9" "Python environment"
+print_step "6/8" "Python environment"
 python3 -m venv "$VENV"
 source "$VENV/bin/activate"
 pip install --upgrade pip -q
@@ -262,13 +237,13 @@ grep -q "btc-backtester/venv" ~/.bashrc || echo "source $VENV/bin/activate" >> ~
 grep -q "cd ~/btc-backtester"  ~/.bashrc || echo "cd $INSTALL_DIR"           >> ~/.bashrc
 
 # ─── STEP 8: WRITE SESSION CONFIG ─────────────────────────────────────────────
-print_step "8/9" "Writing session config"
+print_step "7/8" "Writing session config"
 sed -i "s/^DEFAULT_STARTING_BALANCE.*/DEFAULT_STARTING_BALANCE  = ${BALANCE_INPUT}/" \
     "$INSTALL_DIR/bt_config.py"
 print_ok "bt_config.py updated — default balance \$${BALANCE_INPUT}"
 
 # ─── STEP 9: GIT INIT + KRAKEN DATA DOWNLOAD ──────────────────────────────────
-print_step "9/9" "Git setup + Kraken historical data download"
+print_step "8/8" "Git setup + Kraken historical data download"
 
 cd "$INSTALL_DIR"
 if [ ! -d ".git" ]; then
