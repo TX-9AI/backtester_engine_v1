@@ -1,5 +1,6 @@
 # status.py — backtester_engine_v1
 # v1.0 — 2026-06-28 — Session dashboard: current config, cached quarters, DB summary
+# v1.1 — 2026-06-28 — Import bt_config instead of config to avoid shadowing crypto_trader/config.py
 
 """
 Displays a clean pre-flight dashboard of the current backtester state.
@@ -16,7 +17,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
-import config as cfg
+import bt_config as cfg
 from backtest.data_fetcher import DataFetcher
 
 # ── Colours ───────────────────────────────────────────────────────────────────

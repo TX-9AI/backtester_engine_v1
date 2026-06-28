@@ -1,6 +1,7 @@
-# html_report.py — btc_backtester
+# reports/html_report.py — backtester_engine_v1
 # v1.0 — 2026-06-28 — Self-contained HTML backtest report with equity curve,
 #                      drawdown, parameter snapshot, and full trade breakdown
+# v1.1 — 2026-06-28 — Import bt_config instead of config to avoid shadowing crypto_trader/config.py
 
 """
 Generates a self-contained HTML report for a completed backtest run.
@@ -26,7 +27,7 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from backtest.backtest_logger import BacktestLogger
-import config as cfg
+import bt_config as cfg
 
 # ─── COLOUR / FORMAT HELPERS (matching report.py style) ──────────────────────
 

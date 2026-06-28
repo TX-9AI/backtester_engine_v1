@@ -1,5 +1,6 @@
-# config.py — btc_backtester
+# bt_config.py — backtester_engine_v1
 # v1.0 — 2026-06-28 — Backtester session configuration
+# v1.1 — 2026-06-28 — Renamed from config.py → bt_config.py to avoid shadowing crypto_trader/config.py
 
 """
 All tunable backtester parameters live here.

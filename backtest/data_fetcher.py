@@ -1,5 +1,10 @@
-# data_fetcher.py — btc_backtester
+# backtest/data_fetcher.py — backtester_engine_v1
 # v1.0 — 2026-06-28 — Pull and cache Kraken BTC/USD OHLCV in 90-day quarters via CCXT
+# v1.1 — 2026-06-28 — Fix: _quarter_bounds() swapped month/day variables causing wrong date range
+# v1.2 — 2026-06-28 — Fix: Kraken uses XBT/USD not BTC/USD in CCXT; auto-detect symbol on init
+# v1.3 — 2026-06-28 — Fix: probe all three symbol variants with live fetch to confirm OHLCV available
+# v1.4 — 2026-06-28 — Fix: Kraken OHLC ignores since for history; use publicGetOHLC with last cursor
+#                      Kraken returns max 720 candles per call, paginate via 'last' field in response
 
 """
 Fetches historical BTC/USD 1-minute OHLCV from Kraken via CCXT.
@@ -26,7 +31,9 @@ logger = logging.getLogger(__name__)
 
 # ─── CONSTANTS ────────────────────────────────────────────────────────────────
 
-SYMBOL          = "BTC/USD"
+SYMBOL          = "XBT/USD:BTNL"   # Kraken margin perpetual — what the bot actually trades
+SYMBOL_SPOT     = "BTC/USD"        # Kraken spot — fallback for OHLCV history
+SYMBOL_XBT_SPOT = "XBT/USD"        # Kraken XBT spot — second fallback
 TIMEFRAME       = "1m"
 CANDLES_PER_REQ = 720          # Kraken max per request
 RATE_LIMIT_SEC  = 1.2          # Stay under Kraken rate limits
@@ -38,13 +45,14 @@ EARLIEST_DATE   = datetime(2020, 1, 1, tzinfo=timezone.utc)   # How far back to 
 
 def _quarter_bounds(year: int, q: int) -> tuple[datetime, datetime]:
     """Return (start, end) UTC datetimes for a given year/quarter."""
+    # (month, day) tuples for quarter start and next-quarter start
     starts = {1: (1, 1), 2: (4, 1), 3: (7, 1), 4: (10, 1)}
-    ends   = {1: (4, 1), 2: (7, 1), 3: (10, 1), 4: (1, 1)}
-    sy, sm = starts[q]
-    ey, em = ends[q]
-    ey_actual = year if q < 4 else year + 1
-    start = datetime(year, sm, sy, tzinfo=timezone.utc)
-    end   = datetime(ey_actual, em, 1, tzinfo=timezone.utc) - timedelta(seconds=1)
+    ends   = {1: (4, 1), 2: (7, 1), 3: (10, 1), 4: (1,  1)}
+    start_month, start_day = starts[q]
+    end_month,   end_day   = ends[q]
+    end_year = year if q < 4 else year + 1
+    start = datetime(year,     start_month, start_day, tzinfo=timezone.utc)
+    end   = datetime(end_year, end_month,   end_day,   tzinfo=timezone.utc) - timedelta(seconds=1)
     return start, end
 
 
@@ -88,6 +96,8 @@ class DataFetcher:
             "enableRateLimit": True,
             "timeout": 30000,
         })
+        # Auto-detect correct symbol — Kraken uses XBT/USD in CCXT
+        self.symbol = self._resolve_symbol()
 
     # ── Public API ────────────────────────────────────────────────────────────
 
@@ -158,46 +168,138 @@ class DataFetcher:
 
     # ── Internal ──────────────────────────────────────────────────────────────
 
-    def _fetch_range(self, start: datetime, end: datetime) -> pd.DataFrame:
-        """Paginate through Kraken OHLCV requests to cover a full date range."""
-        since_ms  = int(start.timestamp() * 1000)
-        end_ms    = int(end.timestamp() * 1000)
-        all_rows  = []
+    def _resolve_symbol(self) -> str:
+        """
+        Probe Kraken for the correct OHLCV symbol.
+        Tries margin pair first, then spot fallbacks.
+        Uses a live candle fetch to confirm data is actually available.
+        """
+        candidates = [SYMBOL, SYMBOL_XBT_SPOT, SYMBOL_SPOT]
+        try:
+            markets = self.exchange.load_markets()
+            # Filter to only symbols that exist in the market
+            candidates = [s for s in candidates if s in markets] + \
+                         [s for s in candidates if s not in markets]
+        except Exception as e:
+            logger.warning(f"[DataFetcher] Market load failed: {e}")
 
-        while since_ms < end_ms:
+        # Probe each symbol with a tiny fetch to confirm OHLCV works
+        test_since_sec = int(datetime(2025, 1, 2, tzinfo=timezone.utc).timestamp())
+        for sym in candidates:
             try:
-                raw = self.exchange.fetch_ohlcv(
-                    SYMBOL,
-                    timeframe=TIMEFRAME,
-                    since=since_ms,
-                    limit=CANDLES_PER_REQ,
+                test = self.exchange.fetch_ohlcv(
+                    sym, "1m",
+                    since=test_since_sec * 1000,
+                    limit=2,
+                    params={"since": test_since_sec},
                 )
+                if test:
+                    logger.info(f"[DataFetcher] Confirmed symbol: {sym} ({len(test)} candles returned)")
+                    return sym
+                else:
+                    logger.debug(f"[DataFetcher] {sym} returned no data")
+            except Exception as e:
+                logger.debug(f"[DataFetcher] {sym} probe failed: {e}")
+
+        logger.warning(f"[DataFetcher] All symbol probes failed — using {SYMBOL_SPOT}")
+        return SYMBOL_SPOT
+
+    def _fetch_range(self, start: datetime, end: datetime) -> pd.DataFrame:
+        """
+        Fetch historical OHLCV from Kraken using publicGetOHLC with cursor pagination.
+
+        Key findings from API diagnostic:
+        - Symbol: XBTUSD (Kraken internal) mapped from BTC/USD (CCXT)
+        - Kraken returns max 720 candles per call
+        - Pagination uses the 'last' field in the response as the next 'since'
+        - 'since' is in UNIX seconds
+        - Candle format: [time, open, high, low, close, vwap, volume, count]
+        """
+        since_sec = int(start.timestamp())
+        end_sec   = int(end.timestamp())
+        all_rows  = []
+        retries   = 0
+        max_retries = 5
+
+        # Kraken internal pair name for BTC/USD
+        kraken_pair = "XBTUSD"
+
+        while since_sec < end_sec:
+            try:
+                response = self.exchange.publicGetOHLC({
+                    "pair":     kraken_pair,
+                    "interval": 1,           # 1 minute
+                    "since":    since_sec,
+                })
+                retries = 0
+            except ccxt.DDoSProtection as e:
+                wait = min(30 * (retries + 1), 120)
+                logger.warning(f"[DataFetcher] Rate limited — waiting {wait}s")
+                time.sleep(wait)
+                retries += 1
+                if retries >= max_retries:
+                    logger.error("[DataFetcher] Max retries hit — stopping")
+                    break
+                continue
             except ccxt.NetworkError as e:
-                logger.warning(f"[DataFetcher] Network error, retrying in 5s: {e}")
-                time.sleep(5)
+                logger.warning(f"[DataFetcher] Network error, retrying in 10s: {e}")
+                time.sleep(10)
+                retries += 1
+                if retries >= max_retries:
+                    break
                 continue
             except ccxt.ExchangeError as e:
                 logger.error(f"[DataFetcher] Exchange error: {e}")
                 raise
 
-            if not raw:
+            result = response.get("result", {})
+            # Get candle data — key is the pair name (e.g. 'XXBTZUSD')
+            candle_key = next((k for k in result if k != "last"), None)
+            if not candle_key:
                 break
 
-            all_rows.extend(raw)
-            last_ts = raw[-1][0]
+            candles = result[candle_key]
+            last_cursor = result.get("last")
 
-            if last_ts >= end_ms or len(raw) < CANDLES_PER_REQ:
+            if not candles:
                 break
 
-            since_ms = last_ts + 60_000   # advance by one candle
+            # Filter to requested date range and convert
+            for c in candles:
+                ts_sec = int(c[0])
+                if ts_sec > end_sec:
+                    break
+                if ts_sec >= since_sec:
+                    all_rows.append({
+                        "timestamp_sec": ts_sec,
+                        "open":   float(c[1]),
+                        "high":   float(c[2]),
+                        "low":    float(c[3]),
+                        "close":  float(c[4]),
+                        "volume": float(c[6]),
+                    })
+
+            # Check if we've reached the end of the requested range
+            last_candle_sec = int(candles[-1][0])
+            if last_candle_sec >= end_sec:
+                break
+
+            # Advance using Kraken's last cursor
+            if last_cursor and int(last_cursor) > since_sec:
+                since_sec = int(last_cursor)
+            else:
+                # Fallback: advance past last candle
+                since_sec = last_candle_sec + 60
+
             time.sleep(RATE_LIMIT_SEC)
 
         if not all_rows:
             raise ValueError(f"No data returned from Kraken for range {start} → {end}")
 
-        df = pd.DataFrame(all_rows, columns=["timestamp_ms", "open", "high", "low", "close", "volume"])
-        df["timestamp"] = pd.to_datetime(df["timestamp_ms"], unit="ms", utc=True)
-        df = df.drop(columns=["timestamp_ms"])
+        df = pd.DataFrame(all_rows)
+        df["timestamp"] = pd.to_datetime(df["timestamp_sec"], unit="s", utc=True)
+        df = df.drop(columns=["timestamp_sec"])
+        df = df[["timestamp", "open", "high", "low", "close", "volume"]]
         df = df[df["timestamp"] <= end]
         df = df.drop_duplicates(subset="timestamp").sort_values("timestamp").reset_index(drop=True)
         return df

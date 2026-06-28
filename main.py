@@ -1,6 +1,10 @@
-# main.py — btc_backtester
+# main.py — backtester_engine_v1
 # v1.0 — 2026-06-28 — Entry point: interactive session setup, quarter selection, run dispatch
 # v1.1 — 2026-06-28 — Auto-generate HTML report after each quarter run
+# v1.2 — 2026-06-28 — Import bt_config instead of config to avoid shadowing crypto_trader/config.py
+# v1.3 — 2026-06-28 — Guard against empty DataFrame from data_fetcher in run_quarter
+# v1.4 — 2026-06-28 — Fix: session table crash on None run_id for skipped quarters
+# v1.5 — 2026-06-28 — Improve auto-report error output to show full traceback
 
 """
 Run a backtest session:
@@ -33,7 +37,7 @@ from pathlib import Path
 # Ensure crypto_trader module can be imported from local copy
 sys.path.insert(0, str(Path(__file__).parent))
 
-import config as cfg
+import bt_config as cfg
 from backtest.data_fetcher import DataFetcher
 from backtest.replay import ReplayConfig, ReplayEngine
 from backtest.backtest_logger import BacktestLogger
@@ -140,6 +144,11 @@ def run_quarter(
 
     # Load data
     df = fetcher.load_quarter(label)
+    if df.empty:
+        print(f"  ⚠  No data returned for {label} — skipping.")
+        return {"quarter": label, "run_id": None, "trades": 0,
+                "win_rate": "—", "avg_r": "—", "profit_factor": "—",
+                "max_dd": "—", "net_pnl": "—", "end_balance": f"${balance:,.2f}"}
     print(f"  Loaded {len(df):,} candles  "
           f"({df['timestamp'].iloc[0].date()} → {df['timestamp'].iloc[-1].date()})")
 
@@ -182,7 +191,9 @@ def run_quarter(
         rpt_path.write_text(html_out)
         print(f"\n  📄 Report: {rpt_path}")
     except Exception as e:
+        import traceback
         print(f"\n  ⚠  Report generation failed: {e}")
+        print(traceback.format_exc())
 
     return {
         "quarter":       label,
@@ -227,9 +238,15 @@ def print_session_table(results: list[dict]) -> None:
     print(f"  {'─'*76}")
     for r in results:
         print(row_fmt.format(
-            r["quarter"], r["run_id"], r["trades"],
-            r["win_rate"], r["avg_r"], r["profit_factor"],
-            r["max_dd"], r["net_pnl"], r["end_balance"],
+            r["quarter"],
+            str(r["run_id"]) if r["run_id"] is not None else "—",
+            str(r["trades"]),
+            str(r["win_rate"]),
+            str(r["avg_r"]),
+            str(r["profit_factor"]),
+            str(r["max_dd"]),
+            str(r["net_pnl"]),
+            str(r["end_balance"]),
         ))
     print(f"{'═'*80}\n")
 

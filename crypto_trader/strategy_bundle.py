@@ -1,5 +1,8 @@
 # strategy_bundle.py — backtester_engine_v1
 # v1.0 — 2026-06-28 — Adapter connecting ReplayEngine to live crypto_trader strategy stack
+# v1.1 — 2026-06-28 — Fix: add crypto_trader/ to sys.path so bare imports resolve correctly
+# v1.2 — 2026-06-28 — Fix: import from analysis/, strategy/, risk/ directly (not crypto_trader.x)
+# v1.3 — 2026-06-28 — Fix: init_risk_manager() signature — no paper kwarg, use cash_balance only
 
 """
 StrategyBundle wraps the live bot's strategy classes into the interface
@@ -21,21 +24,27 @@ from typing import Optional
 
 import pandas as pd
 
-# ── Ensure crypto_trader/ is importable ──────────────────────────────────────
-_CT_DIR = Path(__file__).parent
-if str(_CT_DIR) not in sys.path:
-    sys.path.insert(0, str(_CT_DIR.parent))
+# ── Path setup ───────────────────────────────────────────────────────────────
+# crypto_trader/ must be on sys.path so the strategy files' bare imports
+# (e.g. "from config import ...") resolve to crypto_trader/config.py
+# Project root must also be on sys.path for "from crypto_trader.x import ..."
+_CT_DIR   = Path(__file__).parent          # .../btc-backtester/crypto_trader/
+_ROOT_DIR = _CT_DIR.parent                 # .../btc-backtester/
 
-from crypto_trader.regime_classifier  import get_regime_classifier
-from crypto_trader.volatility_engine  import get_volatility_engine
-from crypto_trader.liquidity_mapper   import get_liquidity_mapper
-from crypto_trader.structure_analyzer import get_structure_analyzer
-from crypto_trader.momentum_strategy         import MomentumStrategy
-from crypto_trader.compression_scalp_strategy import CompressionScalpStrategy
-from crypto_trader.sweep_reversal_strategy   import SweepReversalStrategy
-from crypto_trader.mean_reversion_strategy   import MeanReversionStrategy
-from crypto_trader.risk_manager       import init_risk_manager, get_risk_manager
-from crypto_trader.config             import SessionConfig
+for _p in [str(_CT_DIR), str(_ROOT_DIR)]:
+    if _p not in sys.path:
+        sys.path.insert(0, _p)
+
+from analysis.regime_classifier   import get_regime_classifier
+from analysis.volatility_engine   import get_volatility_engine
+from analysis.liquidity_mapper    import get_liquidity_mapper
+from analysis.structure_analyzer  import get_structure_analyzer
+from strategy.momentum_strategy          import MomentumStrategy
+from strategy.compression_scalp_strategy import CompressionScalpStrategy
+from strategy.sweep_reversal_strategy    import SweepReversalStrategy
+from strategy.mean_reversion_strategy    import MeanReversionStrategy
+from risk.risk_manager            import init_risk_manager, get_risk_manager
+from config                       import SessionConfig
 
 logger = logging.getLogger(__name__)
 
@@ -61,10 +70,9 @@ class StrategyBundle:
             "mean_rev":    MeanReversionStrategy(),
         }
 
-        # RiskManager initialised with paper=True, no Kraken calls
+        # RiskManager — pass session config and default cash balance
         session_cfg = SessionConfig()
-        session_cfg.PAPER_TRADING = True
-        init_risk_manager(session_config=session_cfg, paper=True)
+        init_risk_manager(session_config=session_cfg, cash_balance=1000.0)
 
     # ── Step 1: Compute indicators ────────────────────────────────────────────
 
