@@ -1,6 +1,9 @@
 # bt_config.py — backtester_engine_v1
 # v1.0 — 2026-06-28 — Backtester session configuration
 # v1.1 — 2026-06-28 — Renamed from config.py → bt_config.py to avoid shadowing crypto_trader/config.py
+# v1.2 — 2026-06-29 — Add BYPASS_FEE_FLOOR flag — disables fee gate during backtesting
+#                      Fee P&L is still tracked accurately in trade records
+#                      Default balance raised to $10,000 (realistic target account size)
 
 """
 All tunable backtester parameters live here.
@@ -29,7 +32,24 @@ EARLIEST_QUARTER    = "2020-Q1"    # How far back to allow
 
 # ─── SESSION DEFAULTS (overridden at runtime via main.py prompts) ─────────────
 
-DEFAULT_STARTING_BALANCE  = 5000
+DEFAULT_STARTING_BALANCE  = 10000.0     # USD — $10k realistic target account size
+
+# ─── BACKTESTER OVERRIDES ─────────────────────────────────────────────────────
+# These settings differ from live bot behavior for backtesting purposes
+
+# Bypass the fee floor gate — the live bot rejects trades where 1R < fees.
+# In backtesting this blocks nearly all trades on smaller accounts because
+# notional is small relative to fixed fee overhead. Fees are still calculated
+# and deducted from P&L accurately — we just don't use them as an entry gate.
+BYPASS_FEE_FLOOR    = True
+
+# Use limit order fees for backtesting (maker = 0.40% vs taker = 0.80%)
+# Backtester fills at exact signal price — equivalent to a resting limit order.
+# Live bot uses market orders; this reflects the realistic cost of limit entries.
+# Round-trip: open maker (0.40%) + close maker (0.40%) + margin open (0.02%)
+BACKTEST_USE_LIMIT_FEES = True
+BACKTEST_MAKER_FEE      = 0.0040   # 0.40% per side
+BACKTEST_TAKER_FEE      = 0.0040   # Use maker rate for both sides
 DEFAULT_LEVERAGE          = 10
 
 # ─── STRATEGY DEFAULTS (mirrors live bot config.py) ──────────────────────────

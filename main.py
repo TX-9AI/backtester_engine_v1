@@ -5,6 +5,8 @@
 # v1.3 — 2026-06-28 — Guard against empty DataFrame from data_fetcher in run_quarter
 # v1.4 — 2026-06-28 — Fix: session table crash on None run_id for skipped quarters
 # v1.5 — 2026-06-28 — Improve auto-report error output to show full traceback
+# v1.6 — 2026-06-29 — Perf: suppress INFO logging from strategy/execution modules during replay
+#                      They log on every candle — kills performance and drowns output
 
 """
 Run a backtest session:
@@ -57,6 +59,27 @@ def setup_logging(verbose: bool = False) -> None:
     # Quiet noisy libraries
     for name in ("ccxt", "urllib3", "requests"):
         logging.getLogger(name).setLevel(logging.WARNING)
+
+    # Suppress per-candle INFO spam from strategy/execution modules
+    # These log on every signal evaluation — ~100k lines per quarter
+    # Set to WARNING so real errors still surface
+    if not verbose:
+        for name in (
+            "analysis.regime_classifier",
+            "analysis.volatility_engine",
+            "analysis.trend_engine",
+            "analysis.liquidity_mapper",
+            "analysis.structure_analyzer",
+            "strategy.momentum_strategy",
+            "strategy.sweep_reversal_strategy",
+            "strategy.compression_scalp_strategy",
+            "strategy.mean_reversion_strategy",
+            "strategy.strategy_selector",
+            "execution.signal_validator",
+            "risk.risk_manager",
+            "risk.setup_scorer",
+        ):
+            logging.getLogger(name).setLevel(logging.WARNING)
 
 
 # ─── INTERACTIVE SESSION SETUP ────────────────────────────────────────────────

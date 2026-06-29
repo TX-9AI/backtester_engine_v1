@@ -3,6 +3,10 @@
 # v1.1 — 2026-06-28 — Perf: resample higher TFs only on candle boundary, not every tick
 #                      Use deque for rolling window, avoid full DataFrame rebuild each candle
 # v1.2 — 2026-06-28 — Add: progress bar with candle count, trades, balance, elapsed time
+# v1.3 — 2026-06-28 — Add: rejection counter — tallies why signals were blocked, prints summary
+# v1.4 — 2026-06-28 — Fix: resample only OHLCV columns (vwap column was causing pandas error)
+#                      Fix: boundary check uses absolute minute count not minute_of_day
+# v1.5 — 2026-06-29 — Add: ruin check — halts replay if balance drops below 10% of starting
 
 """
 Feeds historical 1m OHLCV candles into the strategy code one candle at a time,
@@ -113,37 +117,35 @@ class CandleBuffer:
                      WINDOW_SIZES["1d"]  * 1440)
         self._1m_history: deque = deque(maxlen=max_1m)
         self.windows: dict[str, pd.DataFrame] = {tf: pd.DataFrame() for tf in WINDOW_SIZES}
-        self._last_tf_minute: dict[str, int] = {}   # last candle minute per TF
+        self._candle_count: int = 0
 
     def push(self, candle: dict) -> None:
         """Ingest a new closed 1m candle. Resample higher TFs only on boundary."""
         self._1m_history.append(candle)
+        self._candle_count += 1
 
-        # Always update 1m window
-        self.windows["1m"] = pd.DataFrame(list(self._1m_history)[-WINDOW_SIZES["1m"]:])
+        # Always update 1m window (drop vwap — not an OHLCV column)
+        history_slice = list(self._1m_history)[-WINDOW_SIZES["1m"]:]
+        df_1m = pd.DataFrame(history_slice)[["timestamp","open","high","low","close","volume"]]
+        self.windows["1m"] = df_1m
 
-        # Only resample a higher TF when its boundary is crossed
         if len(self._1m_history) < 2:
             return
 
-        ts = pd.to_datetime(candle["timestamp"], utc=True)
-        minute_of_day = ts.hour * 60 + ts.minute
-
+        # Resample only when a higher TF boundary is crossed
+        # Use absolute candle count modulo to avoid midnight reset issues
         needs_resample = False
         for tf, minutes in RESAMPLE_MAP.items():
-            last = self._last_tf_minute.get(tf, -1)
-            current_period = (minute_of_day // minutes) * minutes
-            if current_period != last:
-                self._last_tf_minute[tf] = current_period
+            if self._candle_count % minutes == 0:
                 needs_resample = True
-                break   # one resample call covers all TFs
+                break
 
         if not needs_resample:
             return
 
-        # Build DataFrame once and resample all TFs from it
+        # Build OHLCV-only DataFrame for resampling (exclude vwap and other extras)
         history_list = list(self._1m_history)
-        full_1m = pd.DataFrame(history_list)
+        full_1m = pd.DataFrame(history_list)[["timestamp","open","high","low","close","volume"]]
         full_1m["timestamp"] = pd.to_datetime(full_1m["timestamp"], utc=True)
         full_1m = full_1m.set_index("timestamp")
 
@@ -241,6 +243,25 @@ class ReplayEngine:
         self._vwap_cumulative_vol: float = 0.0
         self._candle_index: int = 0
 
+        # Rejection counter — tracks why entries were blocked
+        self.rejection_counts: dict[str, int] = {
+            "warmup":            0,
+            "in_position":       0,
+            "cooldown":          0,
+            "whipsaw_guard":     0,
+            "daily_range":       0,
+            "no_indicators":     0,
+            "no_regime":         0,
+            "no_signal":         0,
+            "strategy_error":    0,
+            "vwap_gate":         0,
+            "rrr_too_low":       0,
+            "grade_c":           0,
+            "validation_error":  0,
+            "sizing_error":      0,
+            "zero_size":         0,
+        }
+
     # ── Main loop ─────────────────────────────────────────────────────────────
 
     def run(self, df: pd.DataFrame) -> list[dict]:
@@ -258,10 +279,22 @@ class ReplayEngine:
         logger.info(f"[Replay] Starting replay: {total:,} candles | "
                     f"Balance: ${self.cash_balance:,.2f}")
 
+        starting_balance = self.cash_balance
+        ruin_threshold   = starting_balance * 0.10   # Halt at 10% of starting balance
+        ruined           = False
+
         for i, (_, row) in enumerate(df.iterrows()):
             candle = row.to_dict()
             self._process_candle(candle)
             self._candle_index += 1
+
+            # Ruin check — halt if balance falls below 10% of start
+            if self.cash_balance < ruin_threshold and self.open_position is None:
+                sys.stdout.write("\n")
+                print(f"\n  ⚠  RUIN: Balance ${self.cash_balance:,.2f} fell below "
+                      f"10% of starting ${starting_balance:,.2f} — halting replay.")
+                ruined = True
+                break
 
             # Progress bar every 500 candles
             if i % 500 == 0 or i == total - 1:
@@ -291,7 +324,54 @@ class ReplayEngine:
 
         logger.info(f"[Replay] Complete. Trades: {len(self.completed_trades)} | "
                     f"Final balance: ${self.cash_balance:,.2f}")
+
+        self._print_rejection_summary()
         return self.completed_trades
+
+    def _print_rejection_summary(self) -> None:
+        """Print a summary of why entries were blocked during the replay."""
+        total = sum(self.rejection_counts.values())
+        trades = len(self.completed_trades)
+        if total == 0 and trades == 0:
+            print("\n  ⚠  No signals generated — strategy stack may not be computing indicators correctly.")
+            return
+
+        labels = {
+            "no_signal":        "No signal from strategy",
+            "no_indicators":    "Indicators failed to compute",
+            "no_regime":        "No regime classified",
+            "strategy_error":   "Strategy threw exception",
+            "vwap_gate":        "VWAP gate block",
+            "rrr_too_low":      "R:R below minimum",
+            "grade_c":          "Grade C disabled",
+            "cooldown":         "Entry cooldown active",
+            "whipsaw_guard":    "Whipsaw guard (post-stop block)",
+            "daily_range":      "Daily range too small",
+            "validation_error": "Validation threw exception",
+            "sizing_error":     "Position sizing threw exception",
+            "zero_size":        "Position size was zero",
+            "warmup":           "Warmup period",
+            "in_position":      "Already in position",
+        }
+
+        print(f"\n  {'─'*52}")
+        print(f"  SIGNAL REJECTION BREAKDOWN")
+        print(f"  {'─'*52}")
+        print(f"  Trades taken:     {trades}")
+        print(f"  Total rejections: {total:,}")
+        print(f"  {'─'*52}")
+
+        # Sort by count descending, skip zeros
+        sorted_counts = sorted(
+            [(k, v) for k, v in self.rejection_counts.items() if v > 0],
+            key=lambda x: -x[1]
+        )
+        for key, count in sorted_counts:
+            label = labels.get(key, key)
+            pct   = count / total * 100 if total > 0 else 0
+            bar   = "█" * min(int(pct / 2), 25)
+            print(f"  {label:<35} {count:>7,}  ({pct:5.1f}%)  {bar}")
+        print(f"  {'─'*52}\n")
 
     # ── Candle processing ─────────────────────────────────────────────────────
 
@@ -428,12 +508,14 @@ class ReplayEngine:
         if self._last_entry_time is not None:
             elapsed = (ts - self._last_entry_time).total_seconds() / 60
             if elapsed < self.config.entry_cooldown_minutes:
+                self.rejection_counts["cooldown"] += 1
                 return
 
         # Whipsaw guard — 15 min block after stop hit
         if self._last_stop_time is not None:
             elapsed = (ts - self._last_stop_time).total_seconds() / 60
             if elapsed < 15:
+                self.rejection_counts["whipsaw_guard"] += 1
                 return
 
         # Daily range filter
@@ -443,18 +525,27 @@ class ReplayEngine:
             if daily["high"] > 0 and daily["low"] > 0:
                 daily_range = (daily["high"] - daily["low"]) / daily["low"]
                 if daily_range < self.config.min_daily_range_pct:
+                    self.rejection_counts["daily_range"] += 1
                     return
 
         # Run strategy stack
         try:
             indicators = self.bundle.compute_indicators(windows, candle)
+            if not indicators:
+                self.rejection_counts["no_indicators"] += 1
+                return
             regime, conviction = self.bundle.classify_regime(indicators, self.config)
+            if regime is None:
+                self.rejection_counts["no_regime"] += 1
+                return
             signal = self.bundle.generate_signal(regime, conviction, indicators, candle, self.config)
         except Exception as e:
             logger.warning(f"[Replay] Strategy error at {ts}: {e}")
+            self.rejection_counts["strategy_error"] += 1
             return
 
         if signal is None:
+            self.rejection_counts["no_signal"] += 1
             return
 
         # Entry validation
@@ -462,9 +553,25 @@ class ReplayEngine:
             valid = self.bundle.validate_entry(signal, indicators, self.config)
         except Exception as e:
             logger.warning(f"[Replay] Validation error at {ts}: {e}")
+            self.rejection_counts["validation_error"] += 1
             return
 
         if not valid:
+            # Determine which gate blocked it
+            direction = signal.get("direction")
+            vwap = indicators.get("vwap", 0)
+            entry = signal.get("entry", 0)
+            grade = signal.get("grade", "B")
+            if grade == "C":
+                self.rejection_counts["grade_c"] += 1
+            elif self.config.vwap_filter_active and vwap > 0:
+                if (direction == "short" and entry > vwap) or \
+                   (direction == "long"  and entry < vwap):
+                    self.rejection_counts["vwap_gate"] += 1
+                else:
+                    self.rejection_counts["rrr_too_low"] += 1
+            else:
+                self.rejection_counts["rrr_too_low"] += 1
             return
 
         # Size the position
@@ -474,9 +581,11 @@ class ReplayEngine:
             )
         except Exception as e:
             logger.warning(f"[Replay] Sizing error at {ts}: {e}")
+            self.rejection_counts["sizing_error"] += 1
             return
 
         if contracts <= 0 or notional <= 0:
+            self.rejection_counts["zero_size"] += 1
             return
 
         # Open position

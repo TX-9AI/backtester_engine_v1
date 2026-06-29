@@ -1,0 +1,353 @@
+
+======================================================================
+  1. THE FUNDAMENTAL TRUTH: ETH IS A MEAN-REVERTING INSTRUMENT
+======================================================================
+
+  ── ALL TIME (2016-2025) ──
+    Events analyzed:     31,570
+    Reversed (2h):       75.1%  ← dominant behavior
+    Continued (2h):      24.9%
+    Edge if always fade: +25.1% above random
+    Avg move magnitude:  3.50%
+    Median magnitude:    2.81%
+
+  ── MODERN (2020-2025) ──
+    Events analyzed:     9,306
+    Reversed (2h):       74.9%  ← dominant behavior
+    Continued (2h):      25.1%
+    Edge if always fade: +24.9% above random
+    Avg move magnitude:  3.16%
+    Median magnitude:    2.60%
+
+  IMPLICATION: ETH intraday moves are FALSE by nature.
+  The default assumption should be REVERSAL, not continuation.
+  A strategy that fades every 2%+ move would beat random by ~25%.
+
+======================================================================
+  2. PRE-CONDITION DEEP DIVE — MODERN MARKET
+======================================================================
+
+  ── Reversal rate by pre-condition (2020-2025) ──
+    COMPRESSING          n=6,002  reversal=74%  avg=2.84%  up_bias=44%
+    POST_SWEEP           n=1,523  reversal=76%  avg=3.53%  up_bias=47%
+    RANGING              n=  50  reversal=76%  avg=4.73%  up_bias=48%
+    TRENDING_DOWN        n=1,212  reversal=73%  avg=4.13%  up_bias=74%
+    TRENDING_UP          n= 519  reversal=80%  avg=3.31%  up_bias=27%
+
+  ── The compression setup in detail ──
+    Compression events:    6,002
+    Reversal rate:         74.4%
+    UP moves:              2,666 (44.4%)
+    DOWN moves:            3,336 (55.6%)
+    Avg magnitude:         2.84%
+
+  ── Best hours for compression reversals ──
+    02:00 UTC   n=168.0  reversal=80%  avg=2.75%
+    22:00 UTC   n=256.0  reversal=79%  avg=2.94%
+    11:00 UTC   n=225.0  reversal=79%  avg=2.98%
+    08:00 UTC   n=246.0  reversal=78%  avg=2.80%
+    23:00 UTC   n=264.0  reversal=78%  avg=2.76%
+    18:00 UTC   n=260.0  reversal=77%  avg=2.81%
+    17:00 UTC   n=231.0  reversal=77%  avg=2.80%
+    20:00 UTC   n=254.0  reversal=76%  avg=2.85%
+
+  ── Post-sweep moves in detail ──
+    Post-sweep events:     1,523
+    Reversal rate:         76.4%
+    Avg magnitude:         3.53%  ← highest of all conditions
+    UP after sweep:        46.8%
+    DOWN after sweep:      53.2%
+
+======================================================================
+  3. TIME-OF-DAY EDGE — WHEN ETH IS MOST PREDICTABLE
+======================================================================
+
+  ── Reversal rate by hour (UTC) — modern market ──
+    Hour       Events  Reversal%   AvgMag    UP%
+    ─────────────────────────────────────────────
+    22:00 UTC   390.0      81.5%    3.13%    48% ◄ BEST
+    23:00 UTC   410.0      78.0%    2.99%    44% ◄ BEST
+    16:00 UTC   552.0      77.4%    3.13%    48% ◄ BEST
+    08:00 UTC   355.0      77.2%    2.99%    50% ◄ BEST
+    12:00 UTC   441.0      76.6%    3.34%    52%
+    18:00 UTC   413.0      76.5%    3.05%    46%
+    21:00 UTC   421.0      76.5%    3.20%    48%
+    02:00 UTC   267.0      76.4%    3.30%    42%
+    20:00 UTC   416.0      76.2%    3.12%    47%
+    11:00 UTC   336.0      75.6%    3.29%    50%
+    04:00 UTC   237.0      75.1%    3.36%    44%
+    03:00 UTC   268.0      75.0%    3.16%    47%
+    13:00 UTC   588.0      74.7%    3.22%    49%
+    17:00 UTC   385.0      74.5%    3.12%    47%
+    01:00 UTC   368.0      74.5%    3.04%    45%
+    10:00 UTC   286.0      73.4%    3.22%    49%
+    14:00 UTC   661.0      73.4%    3.32%    45%
+    15:00 UTC   588.0      72.8%    3.03%    49%
+    19:00 UTC   395.0      72.7%    3.24%    47%
+    00:00 UTC   489.0      72.6%    3.15%    49%
+    09:00 UTC   288.0      71.9%    3.06%    45%
+    05:00 UTC   226.0      71.7%    3.16%    49%
+    07:00 UTC   280.0      71.4%    3.04%    51%
+    06:00 UTC   246.0      67.1%    3.06%    52%
+
+  ── US market open window (13:00-16:00 UTC = 9AM-12PM ET) ──
+    Events in window:   1,837
+    Reversal rate:      73.6%
+    Avg magnitude:      3.19%
+
+  ── Asia session (00:00-04:00 UTC) ──
+    Events in window:   1,392
+    Reversal rate:      74.3%
+    Avg magnitude:      3.15%
+
+======================================================================
+  4. MAGNITUDE ANALYSIS — SIZE MATTERS
+======================================================================
+
+  ── Reversal rate by move size (modern) ──
+    2.0-2.5%      n=4,103  reversal=75%  avg_cont=0.71%  avg_rev=2.33%
+    2.5-3.0%      n=2,050  reversal=73%  avg_cont=0.97%  avg_rev=2.61%
+    3.0-4.0%      n=1,783  reversal=74%  avg_cont=1.07%  avg_rev=3.16%
+    4.0-5.0%      n= 682  reversal=77%  avg_cont=1.11%  avg_rev=3.83%
+    5.0-7.0%      n= 406  reversal=76%  avg_cont=1.20%  avg_rev=5.23%
+    7.0-10%       n= 171  reversal=80%  avg_cont=0.89%  avg_rev=7.88%
+    10%+          n= 111  reversal=92%  avg_cont=-3.52%  avg_rev=17.15%
+
+  IMPLICATION: Larger moves reverse MORE reliably.
+  A 5%+ move has the highest probability of reversal.
+  This is the institutional stop-hunt signature — bigger grab = bigger reversal.
+
+======================================================================
+  5. EMA STACK CONTEXT — DOES TREND MATTER FOR REVERSALS?
+======================================================================
+
+  ── Reversal rate by EMA stack + direction (modern) ──
+    BULL   + UP     n= 607  reversal=73%  avg=3.01%
+    BULL   + DOWN   n=1,444  reversal=76%  avg=2.94%
+    BEAR   + UP     n=1,862  reversal=70%  avg=3.20%
+    BEAR   + DOWN   n= 802  reversal=77%  avg=3.91%
+    MIXED  + UP     n=1,969  reversal=74%  avg=3.01%
+    MIXED  + DOWN   n=2,622  reversal=78%  avg=3.15%
+
+  KEY INSIGHT: Counter-trend moves (DOWN in BULL stack, UP in BEAR stack)
+  should theoretically continue less — but the data may surprise you.
+
+======================================================================
+  6. THE 2023 DEAD ZONE — WHAT KILLED ETH VOLATILITY
+======================================================================
+
+  ── Annual event counts and avg magnitude ──
+    2016  events=8,677  avg_mag=4.00%  reversal=73%
+    2017  events=7,544  avg_mag=3.53%  reversal=75%
+    2018  events=4,243  avg_mag=3.33%  reversal=77%
+    2019  events=1,800  avg_mag=3.16%  reversal=82%
+    2020  events=1,970  avg_mag=3.31%  reversal=78%
+    2021  events=3,393  avg_mag=3.24%  reversal=71%
+    2022  events=1,915  avg_mag=2.99%  reversal=76%
+    2023  events=  352  avg_mag=3.01%  reversal=87%
+    2024  events=  680  avg_mag=3.11%  reversal=73%
+    2025  events=  996  avg_mag=2.96%  reversal=77%
+
+  ── 2023 monthly breakdown ──
+    2023-01  events= 53  avg=3.04%
+    2023-02  events= 41  avg=2.71%
+    2023-03  events= 82  avg=2.84%
+    2023-04  events= 35  avg=3.08%
+    2023-05  events= 21  avg=2.77%
+    2023-06  events= 22  avg=2.77%
+    2023-07  events=  5  avg=2.48%
+    2023-08  events= 16  avg=4.27%
+    2023-09  events=  7  avg=2.52%
+    2023-10  events= 23  avg=3.39%
+    2023-11  events= 26  avg=2.87%
+    2023-12  events= 21  avg=3.72%
+
+  ── Monthly realized volatility 2022-2025 (avg candle range %) ──
+    2022-01  0.0927%  █
+    2022-02  0.0892%  █
+    2022-03  0.0598%  █
+    2022-04  0.0508%  █
+    2022-05  0.0999%  █
+    2022-06  0.1362%  ██
+    2022-07  0.1007%  ██
+    2022-08  0.0806%  █
+    2022-09  0.0826%  █
+    2022-10  0.0460%  
+    2022-11  0.0948%  █
+    2022-12  0.0309%  
+    2023-01  0.0432%  
+    2023-02  0.0468%  
+    2023-03  0.0600%  █
+    2023-04  0.0405%  
+    2023-05  0.0331%  
+    2023-06  0.0347%  
+    2023-07  0.0171%  
+    2023-08  0.0203%  
+    2023-09  0.0195%  
+    2023-10  0.0315%  
+    2023-11  0.0454%  
+    2023-12  0.0380%  
+    2024-01  0.0455%  
+    2024-02  0.0384%  
+    2024-03  0.0716%  █
+    2024-04  0.0589%  █
+    2024-05  0.0440%  
+    2024-06  0.0278%  
+    2024-07  0.0406%  
+    2024-08  0.0682%  █
+    2024-09  0.0401%  
+    2024-10  0.0348%  
+    2024-11  0.0722%  █
+    2024-12  0.0657%  █
+    2025-01  0.0615%  █
+    2025-02  0.0869%  █
+    2025-03  0.0707%  █
+    2025-04  0.0711%  █
+    2025-05  0.0709%  █
+    2025-06  0.0553%  █
+    2025-07  0.0594%  █
+    2025-08  0.0701%  █
+    2025-09  0.0406%  
+    2025-10  0.0702%  █
+    2025-11  0.0822%  █
+    2025-12  0.0612%  █
+
+  IMPLICATION: 2023 was historically low volatility.
+  Any volatility filter would have correctly sat out 2023.
+  The system needs a minimum daily range gate.
+
+======================================================================
+  7. NOVEL PATTERN DISCOVERY — COMBINATIONS THE DATA REVEALS
+======================================================================
+
+  ── PATTERN A: Compression + US Open (highest quality setup?) ──
+    Events:       1,543
+    Reversal:     73.4%
+    Avg mag:      2.86%
+    UP moves:     45%
+
+  ── PATTERN B: Post-sweep + BULL EMA stack + DOWN move ──
+    Events:       204
+    Reversal:     73.5%  ← sweep DOWN in bull trend = buy the dip?
+    Avg mag:      3.20%
+
+  ── PATTERN C: Post-sweep + BEAR EMA stack + UP move ──
+    Events:       189
+    Reversal:     66.7%  ← sweep UP in bear trend = short the rip?
+    Avg mag:      3.16%
+
+  ── PATTERN D: Trending DOWN pre-condition + UP move (capitulation reversal) ──
+    Events:       897
+    Reversal:     70.6%
+    Avg mag:      3.67%
+    NOTE: UP spike during downtrend — dead cat bounce or reversal?
+
+  ── PATTERN E: Large moves (5%+) — institutional fingerprint ──
+    Events:       688
+    Reversal:     79.7%
+    Avg mag:      8.13%
+    By pre-cond:
+      COMPRESSING          n=222  reversal=82%
+      POST_SWEEP           n=195  reversal=81%
+      RANGING              n= 15  reversal=73%
+      TRENDING_DOWN        n=206  reversal=75%
+      TRENDING_UP          n= 50  reversal=86%
+
+  ── PATTERN F: Weekend vs weekday behavior ──
+    Weekday reversal:  74.5%  n=7,456  avg=3.17%
+    Weekend reversal:  76.5%  n=1,850  avg=3.10%
+
+  ── PATTERN G: Distance from 4h high/low as predictor ──
+    Near 4h extreme (<0.5%):  reversal=74.6%  n=3,062
+    Far from extreme (>=0.5%): reversal=75.0%  n=6,244
+    IMPLICATION: Moves at/near 4h extremes may reverse more reliably
+
+  ── PATTERN H: Volume signature at event ──
+    High volume (top 25%):   reversal=78.3%  n=2,327
+    Low volume (bottom 25%): reversal=74.1%  n=2,327
+
+======================================================================
+  8. TRADEABLE EDGE RANKING — BEST SETUPS BY STATISTICAL MERIT
+======================================================================
+
+  Ranked by reversal rate (modern market, minimum 30 events):
+    Setup                                             N  Reversal%   AvgMag
+    ──────────────────────────────────────────────────────────────────────
+    POST_SWEEP + BULL + UP                           58      82.8%    3.39%
+    TRENDING_DOWN + BEAR + DOWN                     191      81.7%    5.83%
+    TRENDING_UP + MIXED + UP                         58      81.0%    3.41%
+    TRENDING_DOWN + MIXED + DOWN                    124      80.6%    4.85%
+    TRENDING_UP + BULL + UP                          80      80.0%    3.34%
+    POST_SWEEP + MIXED + DOWN                       550      79.8%    3.68%
+    TRENDING_UP + BULL + DOWN                       374      79.1%    3.27%
+    COMPRESSING + MIXED + DOWN                    1,922      77.4%    2.86%
+    POST_SWEEP + MIXED + UP                         466      76.8%    3.57%
+    COMPRESSING + BULL + DOWN                       859      75.9%    2.74%
+    COMPRESSING + BEAR + DOWN                       555      75.3%    3.23%
+    POST_SWEEP + BEAR + DOWN                         56      75.0%    4.14%
+    POST_SWEEP + BULL + DOWN                        204      73.5%    3.20%
+    COMPRESSING + MIXED + UP                      1,415      72.2%    2.79%
+    COMPRESSING + BULL + UP                         464      71.1%    2.87%
+
+======================================================================
+  9. WHAT A DISCRETIONARY TRADER WOULD HAVE TRADED — HINDSIGHT
+======================================================================
+
+  The 10 most tradeable events in hindsight (clean setup + massive move):
+    2021-02-22 13:53  DOWN   60.12%  @$ 1755.29  pre=COMPRESSING
+    2020-03-13 03:05  UP     23.86%  @$  115.78  pre=POST_SWEEP
+    2025-02-03 01:40  DOWN   23.45%  @$ 2780.00  pre=COMPRESSING
+    2020-03-13 02:59  UP     21.53%  @$  115.69  pre=POST_SWEEP
+    2024-04-13 19:40  DOWN   20.85%  @$ 3205.14  pre=COMPRESSING
+    2024-01-03 11:41  DOWN   20.37%  @$ 2335.81  pre=COMPRESSING
+    2021-05-19 13:00  DOWN   19.97%  @$ 2300.00  pre=POST_SWEEP
+    2024-04-13 20:00  DOWN   17.95%  @$ 3092.17  pre=POST_SWEEP
+    2023-12-11 01:54  DOWN   15.20%  @$ 2334.99  pre=COMPRESSING
+    2023-12-11 02:00  DOWN   15.10%  @$ 2332.20  pre=COMPRESSING
+
+======================================================================
+  10. STRATEGY HYPOTHESES FOR FURTHER TESTING
+======================================================================
+
+  Based purely on what the data shows, these strategies warrant backtesting:
+
+  H1: THE COMPRESSION FADE
+      Entry:  Any 2%+ move out of BB squeeze (bb_width < 1.5%)
+      Direction: Fade the move (counter-directional entry)
+      Filter:  US session preferred (13-16 UTC)
+      Edge:   ~74% reversal rate on compression breakouts
+
+  H2: THE POST-SWEEP CONTINUATION
+      Entry:  2%+ move in same direction as the sweep
+      Condition: Preceded by a confirmed sweep event
+      Edge:   3.80% avg magnitude — largest of all conditions
+      Note:   Still reverses 75% — but continuation moves are BIGGER
+
+  H3: THE TREND-ALIGNED SWEEP FADE
+      Entry:  Counter-trend spike in established trend
+      Example: DOWN move when EMA stack is BULL → fade it long
+      Filter:  Must be post-sweep or compression
+      Edge:   See Pattern B/C results above
+
+  H4: THE EXTREME CAPITULATION PLAY
+      Entry:  5%+ move in any direction
+      Direction: Always fade
+      Rationale: Largest moves have highest reversal rates
+      Risk:   These are also the most dangerous if they continue
+
+  H5: THE DEAD MARKET FILTER
+      Rule:   Sit flat when 30-day realized vol < threshold
+      Evidence: 2023 had 352 events vs 3,393 in 2021
+      Implementation: Daily range filter already in bot
+      Refinement: Use rolling 30-day event count as vol proxy
+
+  NEXT STEPS:
+  1. Run eth_strategy_tester.py on each hypothesis
+  2. Walk-forward validate on held-out years
+  3. Combine best 2-3 into composite strategy
+  4. Build ETH trader on crypto_trader bones
+
+======================================================================
+  Analysis complete. Total time: 4.5s
+  Saved: /home/ubuntu/btc-backtester/research/eth_deep_dive.txt
+======================================================================

@@ -1,0 +1,92 @@
+======================================================================
+  ETH/USD Significant Move Analysis
+  2026-06-29 18:09 UTC
+======================================================================
+  Total events:  31,570
+  Date range:    2016-02-11 → 2025-12-31
+  Criteria:      >= 2.0% in <= 30 minutes
+
+  Direction split:
+    UP:    15,595  (49.4%)
+    DOWN:  15,975  (50.6%)
+
+  Pre-condition when move started:
+    COMPRESSING          13,647 events  avg=2.94%  continued=26%
+    POST_SWEEP           9,917 events  avg=3.80%  continued=25%
+    RANGING                690 events  avg=4.34%  continued=27%
+    TRENDING_DOWN        4,150 events  avg=4.26%  continued=24%
+    TRENDING_UP          3,166 events  avg=3.79%  continued=23%
+
+  EMA stack at event:
+    BEAR     8,225 (26.1%)
+    BULL     7,319 (23.2%)
+    MIXED    16,026 (50.8%)
+
+  Follow-through: 24.9% continued  |  75.1% reversed
+
+  Top hours for significant moves (UTC):
+    14:00   1,714
+    15:00   1,665
+    16:00   1,636
+    13:00   1,578
+    00:00   1,504
+    23:00   1,414
+    12:00   1,389
+    22:00   1,365
+
+  Day of week:
+    Mon  4,776
+    Tue  4,958
+    Wed  5,047
+    Thu  4,670
+    Fri  4,713
+    Sat  3,586
+    Sun  3,820
+
+  Magnitude buckets:
+    2-3%      17,839  (56.5%)
+    3-5%      9,784  (31.0%)
+    5-10%     3,353  (10.6%)
+    10%+       594  (1.9%)
+
+  Top 25 largest moves:
+    2017-05-07 22:59  UP    160.00%  @$   30.00  RANGING          REVERSED
+    2017-05-07 23:34  UP    125.64%  @$   39.00  TRENDING_DOWN    REVERSED
+    2017-05-07 23:29  UP    109.52%  @$   42.00  RANGING          REVERSED
+    2021-02-22 14:23  UP     91.93%  @$  912.62  TRENDING_DOWN    REVERSED
+    2017-05-07 22:35  DOWN   66.33%  @$   88.37  POST_SWEEP       REVERSED
+    2017-05-07 22:29  DOWN   65.19%  @$   86.19  TRENDING_DOWN    REVERSED
+    2017-05-07 23:11  DOWN   64.33%  @$   72.88  TRENDING_DOWN    REVERSED
+    2021-02-22 13:53  DOWN   60.12%  @$ 1755.29  COMPRESSING      REVERSED
+    2021-02-22 14:00  DOWN   59.61%  @$ 1733.03  TRENDING_DOWN    REVERSED
+    2017-05-07 23:32  DOWN   59.38%  @$   64.00  TRENDING_DOWN    REVERSED
+    2020-03-13 02:16  UP     36.98%  @$   90.60  TRENDING_DOWN    CONTINUED
+    2021-05-19 13:10  UP     34.74%  @$ 1920.01  TRENDING_DOWN    REVERSED
+    2017-03-17 08:50  UP     31.18%  @$   35.00  TRENDING_DOWN    REVERSED
+    2016-08-02 21:14  UP     30.47%  @$    7.25  TRENDING_DOWN    REVERSED
+    2021-05-19 12:29  DOWN   29.95%  @$ 2641.15  TRENDING_DOWN    REVERSED
+    2017-05-07 21:58  DOWN   29.58%  @$   89.53  TRENDING_DOWN    CONTINUED
+    2017-03-17 07:56  DOWN   29.41%  @$   49.58  POST_SWEEP       REVERSED
+    2021-05-19 12:30  DOWN   29.12%  @$ 2610.06  TRENDING_DOWN    REVERSED
+    2016-03-14 23:40  UP     28.99%  @$   10.00  TRENDING_DOWN    REVERSED
+    2017-03-17 08:00  DOWN   28.57%  @$   49.00  POST_SWEEP       REVERSED
+    2018-02-02 12:48  UP     28.49%  @$  735.00  TRENDING_DOWN    REVERSED
+    2020-08-02 04:15  DOWN   27.71%  @$  415.00  TRENDING_UP      REVERSED
+    2018-04-03 18:27  UP     27.61%  @$  407.58  COMPRESSING      REVERSED
+    2024-08-05 00:45  DOWN   27.26%  @$ 2628.33  TRENDING_DOWN    REVERSED
+    2018-04-03 18:30  UP     27.23%  @$  408.80  COMPRESSING      REVERSED
+
+  Annual summary:
+    2016  8,677 events  up=4427  down=4250  avg=4.00%
+    2017  7,544 events  up=3833  down=3711  avg=3.53%
+    2018  4,243 events  up=2013  down=2230  avg=3.33%
+    2019  1,800 events  up=884  down=916  avg=3.16%
+    2020  1,970 events  up=935  down=1035  avg=3.31%
+    2021  3,393 events  up=1609  down=1784  avg=3.24%
+    2022  1,915 events  up=951  down=964  avg=2.99%
+    2023   352 events  up=176  down=176  avg=3.01%
+    2024   680 events  up=288  down=392  avg=3.11%
+    2025   996 events  up=479  down=517  avg=2.96%
+
+  Full data: /home/ubuntu/btc-backtester/research/eth_events.csv
+======================================================================

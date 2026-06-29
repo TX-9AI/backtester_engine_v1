@@ -1,18 +1,19 @@
-# simulated_broker.py — btc_backtester
+# backtest/simulated_broker.py — backtester_engine_v1
 # v1.0 — 2026-06-28 — Paper fill engine with Kraken fee structure and slippage model
+# v1.1 — 2026-06-29 — Use maker fee rate (0.40%) from bt_config when BACKTEST_USE_LIMIT_FEES=True
+#                      Backtester fills at exact price — equivalent to limit order execution
 
 """
 Simulated broker for backtesting. Mirrors the live bot's paper fill logic
-from execution/order_manager.py but operates on historical candle data.
+but uses limit order (maker) fees since the backtester fills at exact signal price.
 
-Responsibilities:
-  - Apply entry slippage (0.1% on fill price)
-  - Calculate round-trip Kraken fees (taker + margin open)
-  - Enforce minimum order size (0.0001 BTC)
-  - Enforce fee floor: projected 1R profit must exceed round-trip fees
-  - Return fill details consumed by ReplayEngine and BacktestLogger
+Fee model when BACKTEST_USE_LIMIT_FEES=True:
+  Open:   maker fee (0.40%) × notional
+  Close:  maker fee (0.40%) × notional
+  Margin: margin open fee (0.02%) × notional
+  Total round-trip: ~0.82% (vs 1.62% for taker)
 
-Does NOT manage position state — that belongs to ReplayEngine.
+Fees are always tracked and deducted from P&L even when BYPASS_FEE_FLOOR=True.
 """
 
 import logging
@@ -21,13 +22,24 @@ from typing import Optional
 
 logger = logging.getLogger(__name__)
 
-# ─── KRAKEN FEE CONSTANTS (from live config.py) ───────────────────────────────
+# ─── FEE CONSTANTS ────────────────────────────────────────────────────────────
 
-KRAKEN_TAKER_FEE      = 0.0080   # 0.80%
-KRAKEN_MARGIN_OPEN    = 0.0002   # 0.02%
-KRAKEN_ROLLOVER_FEE   = 0.0002   # 0.02% per 4h (not charged in backtest by default)
-PAPER_SLIPPAGE_PCT    = 0.001    # 0.10% per fill (matches live config)
-MIN_ORDER_SIZE_BTC    = 0.0001
+# Load from bt_config if available, fall back to taker rates
+try:
+    import bt_config as _btcfg
+    _USE_LIMIT  = getattr(_btcfg, "BACKTEST_USE_LIMIT_FEES", False)
+    _MAKER_FEE  = getattr(_btcfg, "BACKTEST_MAKER_FEE", 0.0040)
+except ImportError:
+    _USE_LIMIT  = False
+    _MAKER_FEE  = 0.0080
+
+KRAKEN_TAKER_FEE    = 0.0080
+KRAKEN_MAKER_FEE    = _MAKER_FEE
+KRAKEN_FEE          = KRAKEN_MAKER_FEE if _USE_LIMIT else KRAKEN_TAKER_FEE
+KRAKEN_MARGIN_OPEN  = 0.0002
+KRAKEN_ROLLOVER_FEE = 0.0002
+PAPER_SLIPPAGE_PCT  = 0.001
+MIN_ORDER_SIZE_BTC  = 0.0001
 
 
 # ─── FILL RESULT ──────────────────────────────────────────────────────────────
@@ -48,15 +60,13 @@ class FillResult:
 class SimulatedBroker:
     """
     Stateless fill engine. Called by ReplayEngine for every entry and exit.
-
-    All slippage and fee logic is centralized here so the optimizer can
-    vary fee assumptions without touching replay logic.
+    Uses maker fee rate when BACKTEST_USE_LIMIT_FEES=True in bt_config.
     """
 
     def __init__(
         self,
         slippage_pct:      float = PAPER_SLIPPAGE_PCT,
-        taker_fee:         float = KRAKEN_TAKER_FEE,
+        taker_fee:         float = KRAKEN_FEE,        # maker or taker per bt_config
         margin_open_fee:   float = KRAKEN_MARGIN_OPEN,
         charge_rollover:   bool  = False,
         rollover_fee:      float = KRAKEN_ROLLOVER_FEE,
@@ -66,6 +76,9 @@ class SimulatedBroker:
         self.margin_open_fee = margin_open_fee
         self.charge_rollover = charge_rollover
         self.rollover_fee    = rollover_fee
+
+        fee_mode = "MAKER (limit)" if _USE_LIMIT else "TAKER (market)"
+        logger.debug(f"[Broker] Fee mode: {fee_mode} — {taker_fee:.2%} per side")
 
     # ── Entry fill ────────────────────────────────────────────────────────────
 

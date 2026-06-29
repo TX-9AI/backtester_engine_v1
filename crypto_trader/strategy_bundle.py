@@ -1,20 +1,21 @@
-# strategy_bundle.py — backtester_engine_v1
+# crypto_trader/strategy_bundle.py — backtester_engine_v1
 # v1.0 — 2026-06-28 — Adapter connecting ReplayEngine to live crypto_trader strategy stack
 # v1.1 — 2026-06-28 — Fix: add crypto_trader/ to sys.path so bare imports resolve correctly
 # v1.2 — 2026-06-28 — Fix: import from analysis/, strategy/, risk/ directly (not crypto_trader.x)
 # v1.3 — 2026-06-28 — Fix: init_risk_manager() signature — no paper kwarg, use cash_balance only
+# v1.4 — 2026-06-28 — Fix: raise minimum candles for vol_engine (30 5m + 10 1h for BB_PERIOD)
+#                      Fix: re-raise KeyboardInterrupt through all except Exception blocks
+# v1.5 — 2026-06-28 — Fix: add TrendEngine — was missing entirely, causing regime=None always
+# v1.6 — 2026-06-28 — Full rewrite: correct method signatures from all live bot source files
+# v1.7 — 2026-06-28 — Fix: use StrategySelector, get_trend_engine() singleton, conviction cap
+# v1.8 — 2026-06-29 — Fix: set DatetimeIndex on df_5m/df_1h before vol_engine (fixes VWAP=0)
 
 """
 StrategyBundle wraps the live bot's strategy classes into the interface
-expected by ReplayEngine. All method signatures are called exactly as
-the live bot calls them — no translation layer, no mocking.
+expected by ReplayEngine. Calls all engines exactly as the live bot does.
 
-ReplayEngine calls:
-    bundle.compute_indicators(windows, candle)   → (vol_state, trend_state, structure, liq_map)
-    bundle.classify_regime(indicators, config)   → (regime_state, conviction)
-    bundle.generate_signal(regime, conviction, indicators, candle, config) → signal dict or None
-    bundle.validate_entry(signal, indicators, config) → bool
-    bundle.compute_size(signal, indicators, cash_balance, config) → (contracts, notional)
+Pipeline per candle:
+    compute_indicators → classify_regime → generate_signal → validate_entry → compute_size
 """
 
 import logging
@@ -25,11 +26,8 @@ from typing import Optional
 import pandas as pd
 
 # ── Path setup ───────────────────────────────────────────────────────────────
-# crypto_trader/ must be on sys.path so the strategy files' bare imports
-# (e.g. "from config import ...") resolve to crypto_trader/config.py
-# Project root must also be on sys.path for "from crypto_trader.x import ..."
-_CT_DIR   = Path(__file__).parent          # .../btc-backtester/crypto_trader/
-_ROOT_DIR = _CT_DIR.parent                 # .../btc-backtester/
+_CT_DIR   = Path(__file__).parent
+_ROOT_DIR = _CT_DIR.parent
 
 for _p in [str(_CT_DIR), str(_ROOT_DIR)]:
     if _p not in sys.path:
@@ -37,12 +35,11 @@ for _p in [str(_CT_DIR), str(_ROOT_DIR)]:
 
 from analysis.regime_classifier   import get_regime_classifier
 from analysis.volatility_engine   import get_volatility_engine
-from analysis.liquidity_mapper    import get_liquidity_mapper
-from analysis.structure_analyzer  import get_structure_analyzer
-from strategy.momentum_strategy          import MomentumStrategy
-from strategy.compression_scalp_strategy import CompressionScalpStrategy
-from strategy.sweep_reversal_strategy    import SweepReversalStrategy
-from strategy.mean_reversion_strategy    import MeanReversionStrategy
+from analysis.liquidity_mapper    import get_liquidity_mapper, LiquidityMap
+from analysis.structure_analyzer  import get_structure_analyzer, StructureMap
+from analysis.trend_engine        import get_trend_engine
+from execution.signal_validator   import get_signal_validator
+from strategy.strategy_selector   import get_strategy_selector
 from risk.risk_manager            import init_risk_manager, get_risk_manager
 from config                       import SessionConfig
 
@@ -52,35 +49,21 @@ logger = logging.getLogger(__name__)
 class StrategyBundle:
     """
     Stateful adapter. One instance per backtest run.
-    Holds singleton instances of each engine, matching live bot architecture.
     """
 
     def __init__(self):
-        # Instantiate engines exactly as live bot does
         self.vol_engine    = get_volatility_engine()
+        self.trend_engine  = get_trend_engine()
         self.liq_mapper    = get_liquidity_mapper()
         self.structure     = get_structure_analyzer()
         self.classifier    = get_regime_classifier()
-
-        # Strategies — same instances live bot uses
-        self.strategies = {
-            "momentum":    MomentumStrategy(),
-            "compression": CompressionScalpStrategy(),
-            "sweep":       SweepReversalStrategy(),
-            "mean_rev":    MeanReversionStrategy(),
-        }
-
-        # RiskManager — pass session config and default cash balance
-        session_cfg = SessionConfig()
-        init_risk_manager(session_config=session_cfg, cash_balance=1000.0)
+        self.validator     = get_signal_validator()
+        self.selector      = get_strategy_selector()
+        init_risk_manager(cash_balance=1000.0)
 
     # ── Step 1: Compute indicators ────────────────────────────────────────────
 
     def compute_indicators(self, windows: dict, candle: dict) -> dict:
-        """
-        Run VolatilityEngine, LiquidityMapper, StructureAnalyzer.
-        Returns dict of computed states for use by classifier and strategies.
-        """
         df_5m  = windows.get("5m",  pd.DataFrame())
         df_1h  = windows.get("1h",  pd.DataFrame())
         df_15m = windows.get("15m", pd.DataFrame())
@@ -91,48 +74,78 @@ class StrategyBundle:
         if current_price <= 0:
             return {}
 
-        # Volatility state — needs 5m and 1h
+        # ── Volatility ───────────────────────────────────────────────────────
+        # vol_engine expects DatetimeIndex on df_5m/df_1h for VWAP calculation
         vol_state = None
-        if len(df_5m) >= 20 and len(df_1h) >= 5:
+        if len(df_5m) >= 30 and len(df_1h) >= 10:
             try:
+                df_5m_idx = df_5m.copy()
+                df_1h_idx = df_1h.copy()
+                if "timestamp" in df_5m_idx.columns:
+                    df_5m_idx["timestamp"] = pd.to_datetime(df_5m_idx["timestamp"], utc=True)
+                    df_5m_idx = df_5m_idx.set_index("timestamp")
+                if "timestamp" in df_1h_idx.columns:
+                    df_1h_idx["timestamp"] = pd.to_datetime(df_1h_idx["timestamp"], utc=True)
+                    df_1h_idx = df_1h_idx.set_index("timestamp")
                 vol_state = self.vol_engine.analyze(
-                    df_5m=df_5m,
-                    df_1h=df_1h,
-                    current_price=current_price,
+                    df_5m=df_5m_idx, df_1h=df_1h_idx, current_price=current_price
                 )
+            except KeyboardInterrupt:
+                raise
             except Exception as e:
-                logger.debug(f"[Bundle] vol_engine error: {e}")
-                return {}
+                logger.debug(f"[Bundle] vol_engine: {e}")
 
         if vol_state is None:
             return {}
 
-        # Liquidity map — needs 1m history for sweep detection
-        liq_map = None
+        # ── Trend ────────────────────────────────────────────────────────────
+        trend_state = None
         try:
-            liq_map = self.liq_mapper.build_map(
-                df_1m=df_1m,
-                df_5m=df_5m,
-                df_1d=df_1d,
-                current_price=current_price,
-            )
+            trend_state = self.trend_engine.analyze({
+                "1m":  df_1m  if not df_1m.empty  else None,
+                "5m":  df_5m  if not df_5m.empty  else None,
+                "15m": df_15m if not df_15m.empty else None,
+                "1h":  df_1h  if not df_1h.empty  else None,
+                "1d":  df_1d  if not df_1d.empty  else None,
+                "4h":  None,
+            })
+        except KeyboardInterrupt:
+            raise
         except Exception as e:
-            logger.debug(f"[Bundle] liq_mapper error: {e}")
+            logger.debug(f"[Bundle] trend_engine: {e}")
 
-        # Structure map — BOS, FVG, order blocks
-        structure = None
-        try:
-            structure = self.structure.analyze(
-                df_5m=df_5m,
-                df_15m=df_15m,
-                df_1h=df_1h,
-                current_price=current_price,
-            )
-        except Exception as e:
-            logger.debug(f"[Bundle] structure error: {e}")
+        if trend_state is None:
+            return {}
 
-        # TrendState — derived from vol_state (live bot does this inline)
-        trend_state = getattr(vol_state, "trend_state", None)
+        # ── Liquidity ────────────────────────────────────────────────────────
+        # Use empty LiquidityMap as safe default — classifier handles it fine
+        liq_map = LiquidityMap()
+        if len(df_5m) >= 10:
+            try:
+                liq_map = self.liq_mapper.analyze(
+                    df_5m=df_5m,
+                    df_15m=df_15m if not df_15m.empty else None,
+                    current_price=current_price,
+                )
+            except KeyboardInterrupt:
+                raise
+            except Exception as e:
+                logger.debug(f"[Bundle] liq_mapper: {e}")
+
+        # ── Structure ────────────────────────────────────────────────────────
+        structure = StructureMap()
+        if len(df_5m) >= 10:
+            try:
+                structure = self.structure.analyze(
+                    df_5m=df_5m,
+                    df_15m=df_15m if not df_15m.empty else None,
+                    df_1h=df_1h   if not df_1h.empty  else None,
+                    current_price=current_price,
+                )
+            except KeyboardInterrupt:
+                raise
+            except Exception as e:
+                logger.debug(f"[Bundle] structure: {e}")
 
         return {
             "vol_state":     vol_state,
@@ -140,16 +153,13 @@ class StrategyBundle:
             "liq_map":       liq_map,
             "structure":     structure,
             "current_price": current_price,
-            "vwap":          candle.get("vwap", current_price),
+            "vwap":          vol_state.vwap if vol_state.vwap else candle.get("vwap", current_price),
             "windows":       windows,
         }
 
     # ── Step 2: Classify regime ───────────────────────────────────────────────
 
     def classify_regime(self, indicators: dict, config) -> tuple:
-        """
-        Returns (RegimeState, conviction: float).
-        """
         if not indicators:
             return None, 0.0
 
@@ -158,7 +168,7 @@ class StrategyBundle:
         structure   = indicators.get("structure")
         liq_map     = indicators.get("liq_map")
 
-        if vol_state is None or trend_state is None:
+        if vol_state is None or trend_state is None or liq_map is None:
             return None, 0.0
 
         try:
@@ -167,63 +177,36 @@ class StrategyBundle:
                 trend_state=trend_state,
                 structure=structure,
                 liq_map=liq_map,
+                macro=None,
+                trigger="scheduled",
             )
-            conviction = float(getattr(regime_state, "conviction", 0.5))
+            # Cap conviction at 1.0 — sweep_conviction formula can exceed 1.0
+            conviction = min(float(getattr(regime_state, "conviction", 0.5)), 1.0)
+            regime_state.conviction = conviction
+            indicators["_last_regime"] = regime_state
             return regime_state, conviction
+        except KeyboardInterrupt:
+            raise
         except Exception as e:
-            logger.debug(f"[Bundle] classifier error: {e}")
+            logger.debug(f"[Bundle] classifier: {e}")
             return None, 0.0
 
     # ── Step 3: Generate signal ───────────────────────────────────────────────
 
     def generate_signal(self, regime_state, conviction: float,
                         indicators: dict, candle: dict, config) -> Optional[dict]:
-        """
-        Route regime to correct strategy, call generate_signal(),
-        return normalized signal dict or None.
-        """
         if regime_state is None or not indicators:
             return None
 
-        vol_state   = indicators.get("vol_state")
-        structure   = indicators.get("structure")
-        liq_map     = indicators.get("liq_map")
-        current_price = indicators.get("current_price", 0)
-        windows     = indicators.get("windows", {})
+        # Use StrategySelector — handles conviction gate (0.35) and diagnostic mode
+        vol_state     = indicators.get("vol_state")
+        liq_map       = indicators.get("liq_map")
+        structure     = indicators.get("structure")
+        windows       = indicators.get("windows", {})
+        current_price = indicators.get("current_price", float(candle.get("close", 0)))
 
-        if vol_state is None or current_price <= 0:
-            return None
-
-        # Route to strategy based on regime
-        strategy = None
-        strategy_name = None
-
-        if regime_state.is_sweep_reversal:
-            strategy = self.strategies["sweep"]
-            strategy_name = "sweep_reversal"
-        elif regime_state.is_compression:
-            strategy = self.strategies["compression"]
-            strategy_name = "compression_scalp"
-        elif regime_state.is_trending():
-            strategy = self.strategies["momentum"]
-            strategy_name = "momentum"
-        elif regime_state.is_ranging():
-            strategy = self.strategies["mean_rev"]
-            strategy_name = "mean_reversion"
-
-        if strategy is None:
-            return None
-
-        # Check strategy applicability
         try:
-            if not strategy.is_applicable(regime_state):
-                return None
-        except Exception:
-            pass
-
-        # Call generate_signal with live bot signature
-        try:
-            trade_signal = strategy.generate_signal(
+            signal = self.selector.generate_signal(
                 regime=regime_state,
                 vol_state=vol_state,
                 structure=structure,
@@ -231,136 +214,127 @@ class StrategyBundle:
                 data=windows,
                 current_price=current_price,
             )
+        except KeyboardInterrupt:
+            raise
         except Exception as e:
-            logger.debug(f"[Bundle] {strategy_name} signal error: {e}")
+            logger.debug(f"[Bundle] generate_signal: {e}")
             return None
 
-        if trade_signal is None:
+        if signal is None:
             return None
 
-        # Normalize TradeSignal → plain dict for ReplayEngine
-        return self._normalize_signal(trade_signal, regime_state,
-                                      strategy_name, indicators)
+        # Convert TradeSignal dataclass to dict, keep raw object for validator
+        return {
+            "direction":  signal.direction,
+            "entry":      signal.entry_price,
+            "stop":       signal.stop_price,
+            "target":     signal.target_1,
+            "target_2":   getattr(signal, "target_2", None),
+            "grade":      getattr(signal, "grade", "B"),
+            "strategy":   getattr(signal, "strategy_name", ""),
+            "regime":     getattr(signal, "regime", ""),
+            "atr":        getattr(signal, "atr", 0.0),
+            "conviction": getattr(signal, "conviction", conviction),
+            "confluence_factors": getattr(signal, "confluence_factors", []),
+            "_signal_obj": signal,
+        }
 
     # ── Step 4: Validate entry ────────────────────────────────────────────────
 
     def validate_entry(self, signal: dict, indicators: dict, config) -> bool:
-        """
-        Apply VWAP gate and grade filter.
-        Sweep Reversal bypasses VWAP gate — matches live bot behavior.
-        """
-        if not signal:
+        if not signal or not indicators:
             return False
 
-        direction   = signal.get("direction")
-        entry_price = signal.get("entry", 0)
-        vwap        = indicators.get("vwap", 0)
-        grade       = signal.get("grade", "B")
-        strategy    = signal.get("strategy", "")
-
-        # Grade C disabled
-        if grade == "C":
+        signal_obj = signal.get("_signal_obj")
+        if signal_obj is None:
             return False
 
-        # VWAP gate — hard block (Sweep Reversal bypasses)
-        if config.vwap_filter_active and strategy != "sweep_reversal" and vwap > 0:
-            if direction == "short" and entry_price > vwap:
-                logger.debug(f"[Bundle] VWAP gate: short above VWAP blocked")
-                return False
-            if direction == "long" and entry_price < vwap:
-                logger.debug(f"[Bundle] VWAP gate: long below VWAP blocked")
-                return False
+        regime_state  = indicators.get("_last_regime")
+        vol_state     = indicators.get("vol_state")
+        structure     = indicators.get("structure")
+        liq_map       = indicators.get("liq_map")
+        windows       = indicators.get("windows", {})
+        current_price = indicators.get("current_price", 0.0)
 
-        # Minimum R:R check
-        entry  = signal.get("entry", 0)
-        stop   = signal.get("stop",  0)
-        target = signal.get("target", 0)
-        if entry > 0 and stop > 0 and target > 0:
-            r_distance = abs(entry - stop)
-            r_reward   = abs(target - entry)
-            if r_distance > 0:
-                rrr = r_reward / r_distance
-                if rrr < config.min_rrr:
-                    logger.debug(f"[Bundle] RRR {rrr:.2f} < min {config.min_rrr}")
-                    return False
+        if regime_state is None or vol_state is None:
+            return False
 
-        return True
+        try:
+            result = self.validator.validate(
+                signal=signal_obj,
+                regime=regime_state,
+                vol_state=vol_state,
+                structure=structure,
+                liq_map=liq_map,
+                macro=None,
+                data=windows,
+                current_price=current_price,
+            )
+            return result.passed
+        except KeyboardInterrupt:
+            raise
+        except Exception as e:
+            logger.debug(f"[Bundle] validate_entry: {e}")
+            return False
 
     # ── Step 5: Compute size ──────────────────────────────────────────────────
 
     def compute_size(self, signal: dict, indicators: dict,
-                     cash_balance: float, config) -> tuple[float, float]:
-        """
-        Returns (contracts_btc, notional_usd).
-        Uses live RiskManager.compute_size() with cash balance injected.
-        """
-        if not signal or cash_balance <= 0:
+                     cash_balance: float, config) -> tuple:
+        if not signal:
             return 0.0, 0.0
 
-        entry_price = signal.get("entry", 0)
-        stop_price  = signal.get("stop",  0)
-        grade       = signal.get("grade", "B")
-        direction   = signal.get("direction", "long")
+        risk_mgr = get_risk_manager()
+        risk_mgr.update_cash_balance(cash_balance)
 
-        if entry_price <= 0 or stop_price <= 0:
+        entry = signal.get("entry", 0.0)
+        stop  = signal.get("stop", 0.0)
+        grade = signal.get("grade", "B")
+
+        if entry <= 0 or stop <= 0:
             return 0.0, 0.0
 
         try:
-            rm = get_risk_manager()
-            result = rm.compute_size(
-                entry_price=entry_price,
-                stop_price=stop_price,
+            # Check bypass flag from bt_config
+            try:
+                import bt_config as _btcfg
+                bypass_fee_floor = getattr(_btcfg, "BYPASS_FEE_FLOOR", False)
+                maker_fee        = getattr(_btcfg, "BACKTEST_MAKER_FEE", None)
+            except ImportError:
+                bypass_fee_floor = False
+                maker_fee        = None
+
+            if bypass_fee_floor:
+                # Compute size without fee floor check
+                from config import LEVERAGE, GRADE_A_NOTIONAL_PCT, GRADE_B_NOTIONAL_PCT
+                from utils.math_utils import round_size
+                from config import MIN_ORDER_SIZE_BTC
+                grade_pct = {"A": GRADE_A_NOTIONAL_PCT, "B": GRADE_B_NOTIONAL_PCT}.get(grade, GRADE_B_NOTIONAL_PCT)
+                buying_power = cash_balance * LEVERAGE
+                notional     = buying_power * grade_pct
+                size_btc     = round_size(notional / entry, MIN_ORDER_SIZE_BTC)
+                if size_btc < MIN_ORDER_SIZE_BTC:
+                    return 0.0, 0.0
+                notional = size_btc * entry
+
+                # Apply maker fee rate if configured
+                if maker_fee is not None:
+                    risk_mgr._maker_fee_override = maker_fee
+
+                return size_btc, notional
+
+            result = risk_mgr.compute_size(
+                entry_price=entry,
+                stop_price=stop,
                 grade=grade,
                 current_balance=cash_balance,
-                direction=direction,
             )
             if not result.allowed:
-                logger.debug(f"[Bundle] Size rejected: {result.reject_reason}")
+                logger.debug(f"[Bundle] sizing rejected: {result.reject_reason}")
                 return 0.0, 0.0
-
-            return float(result.size_btc), float(result.notional_usd)
-
+            return result.size_btc, result.notional_usd
+        except KeyboardInterrupt:
+            raise
         except Exception as e:
-            logger.debug(f"[Bundle] compute_size error: {e}")
+            logger.debug(f"[Bundle] compute_size: {e}")
             return 0.0, 0.0
-
-    # ── Normalizer ────────────────────────────────────────────────────────────
-
-    def _normalize_signal(self, trade_signal, regime_state,
-                          strategy_name: str, indicators: dict) -> dict:
-        """
-        Convert TradeSignal dataclass → plain dict for ReplayEngine.
-        Handles both dataclass and dict-style TradeSignal objects.
-        """
-        def _get(obj, *keys, default=None):
-            for k in keys:
-                try:
-                    v = getattr(obj, k, None)
-                    if v is not None:
-                        return v
-                except Exception:
-                    pass
-                try:
-                    v = obj.get(k) if isinstance(obj, dict) else None
-                    if v is not None:
-                        return v
-                except Exception:
-                    pass
-            return default
-
-        entry  = _get(trade_signal, "entry", "entry_price", default=indicators.get("current_price"))
-        stop   = _get(trade_signal, "stop",  "stop_price",  default=0)
-        target = _get(trade_signal, "target","target_price", default=0)
-        direction = _get(trade_signal, "direction", default="long")
-        grade  = _get(trade_signal, "grade", default="B")
-
-        return {
-            "direction": direction,
-            "entry":     float(entry)  if entry  else 0.0,
-            "stop":      float(stop)   if stop   else 0.0,
-            "target":    float(target) if target else 0.0,
-            "grade":     str(grade).upper(),
-            "strategy":  strategy_name,
-            "regime":    str(getattr(regime_state, "label",
-                             getattr(regime_state, "regime", "unknown"))),
-        }

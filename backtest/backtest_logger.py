@@ -1,5 +1,6 @@
-# backtest_logger.py — btc_backtester
+# backtest/backtest_logger.py — backtester_engine_v1
 # v1.0 — 2026-06-28 — SQLite trade logger for backtest results
+# v1.1 — 2026-06-29 — Fix: convert Timestamp to str before SQLite insert (TypeError fix)
 
 """
 Persists completed backtest trades to SQLite for querying, reporting, and
@@ -169,8 +170,8 @@ class BacktestLogger:
         rows = [
             (
                 run_id,
-                t.get("entry_time"),
-                t.get("exit_time"),
+                str(t.get("entry_time", "")),
+                str(t.get("exit_time", "")) if t.get("exit_time") else None,
                 t.get("direction"),
                 t.get("entry_price"),
                 t.get("exit_price"),
@@ -218,7 +219,7 @@ class BacktestLogger:
 
         sampled = equity_curve[::stride]
         rows = [
-            (run_id, e["timestamp"], e["cash"], e["unrealized"], e["equity"])
+            (run_id, str(e["timestamp"]), e["cash"], e["unrealized"], e["equity"])
             for e in sampled
         ]
         with self._conn() as conn:
