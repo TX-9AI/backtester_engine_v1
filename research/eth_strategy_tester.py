@@ -1,8 +1,8 @@
 # research/eth_strategy_tester.py — backtester_engine_v1
 # v1.0 — 2026-06-29 — Hypothesis testing on ETH/USD 1m data
-# v1.1 — 2026-06-29 — Full multiprocessing: hypotheses run in parallel,
-#                      trade simulation parallelized within each hypothesis
-#                      4 cores → ~4x speedup, 20min → ~5min
+# v1.1 — 2026-06-29 — Full multiprocessing: parallelized simulation
+# v1.2 — 2026-06-29 — Fix: nested pool error (daemonic processes)
+#                      Fix: cache signals to JSON after scan, load on rerun
 
 """
 Tests each strategy hypothesis against the full ETH/USD 1m dataset.
@@ -82,8 +82,14 @@ def simulate_chunk(args):
     # Build timestamp → index map
     ts_to_idx = {int(ts): i for i, ts in enumerate(ts_arr)}
 
-    results = []
-    for sig in signals_chunk:
+    results  = []
+    n_sigs   = len(signals_chunk)
+    pid      = mp.current_process().pid
+
+    for si, sig in enumerate(signals_chunk):
+        if si % 200 == 0 and n_sigs > 0:
+            sys.stdout.write(f"\r    Core {pid}: {si:,}/{n_sigs:,} ({si/n_sigs*100:.1f}%)")
+            sys.stdout.flush()
         ts      = sig["timestamp"]
         dirn    = sig["direction"]
         entry   = sig["entry_price"]
@@ -241,7 +247,11 @@ def sub(lines, title):
 def build_h1(df):
     """Compression Fade — fade 2%+ move out of BB squeeze."""
     signals = []
-    for idx in range(100, len(df)-1):
+    n = len(df)
+    for idx in range(100, n-1):
+        if idx % 50000 == 0:
+            sys.stdout.write(f"\r    H1 scanning: {idx:,}/{n:,} ({idx/n*100:.1f}%)  signals={len(signals):,}")
+            sys.stdout.flush()
         row = df.iloc[idx]
         if row["daily_range"] < MIN_DAILY_RANGE: continue
         bw = row.get("bb_width", 1.0)
@@ -258,13 +268,19 @@ def build_h1(df):
         elif dn >= 2.0 and dn > up:
             signals.append({"timestamp": row["timestamp"], "direction": "long",
                             "entry_price": price, "stop_price": price - atr_v*ATR_STOP_MULT, "atr": atr_v})
+    sys.stdout.write(f"\r    H1 scanning: {n:,}/{n:,} (100.0%)  signals={len(signals):,}\n")
+    sys.stdout.flush()
     return signals
 
 
 def build_h3(df):
     """Trend-Aligned Fade — fade counter-trend moves in EMA stack."""
     signals = []
-    for idx in range(100, len(df)-1):
+    n = len(df)
+    for idx in range(100, n-1):
+        if idx % 50000 == 0:
+            sys.stdout.write(f"\r    H3 scanning: {idx:,}/{n:,} ({idx/n*100:.1f}%)  signals={len(signals):,}")
+            sys.stdout.flush()
         row = df.iloc[idx]
         if row["daily_range"] < MIN_DAILY_RANGE: continue
         atr_v = row["atr"]
@@ -284,13 +300,20 @@ def build_h3(df):
         elif bear and up >= 2.0 and up > dn:
             signals.append({"timestamp": row["timestamp"], "direction": "short",
                             "entry_price": price, "stop_price": price + atr_v*ATR_STOP_MULT, "atr": atr_v})
+    sys.stdout.write(f"\r    H3 scanning: {n:,}/{n:,} (100.0%)  signals={len(signals):,}\n")
+    sys.stdout.flush()
     return signals
 
 
 def build_h4(df):
     """Extreme Capitulation — fade any 5%+ move."""
     signals = []
-    for idx in range(100, len(df)-1):
+    n = len(df)
+    for idx in range(100, n-1):
+        if idx % 50000 == 0:
+            pct = idx/n*100
+            sys.stdout.write(f"\r    H4 scanning: {idx:,}/{n:,} ({pct:.1f}%)  signals={len(signals):,}")
+            sys.stdout.flush()
         row = df.iloc[idx]
         if row["daily_range"] < MIN_DAILY_RANGE: continue
         atr_v = row["atr"]
@@ -305,13 +328,19 @@ def build_h4(df):
         elif dn >= 5.0 and dn > up:
             signals.append({"timestamp": row["timestamp"], "direction": "long",
                             "entry_price": price, "stop_price": price - atr_v*ATR_STOP_MULT, "atr": atr_v})
+    sys.stdout.write(f"\r    H4 scanning: {n:,}/{n:,} (100.0%)  signals={len(signals):,}\n")
+    sys.stdout.flush()
     return signals
 
 
 def build_h5(df):
     """H4 + volume spike filter."""
     signals = []
-    for idx in range(100, len(df)-1):
+    n = len(df)
+    for idx in range(100, n-1):
+        if idx % 50000 == 0:
+            sys.stdout.write(f"\r    H5 scanning: {idx:,}/{n:,} ({idx/n*100:.1f}%)  signals={len(signals):,}")
+            sys.stdout.flush()
         row = df.iloc[idx]
         if row["daily_range"] < MIN_DAILY_RANGE: continue
         atr_v  = row["atr"]
@@ -329,6 +358,8 @@ def build_h5(df):
         elif dn >= 5.0 and dn > up:
             signals.append({"timestamp": row["timestamp"], "direction": "long",
                             "entry_price": price, "stop_price": price - atr_v*ATR_STOP_MULT, "atr": atr_v})
+    sys.stdout.write(f"\r    H5 scanning: {n:,}/{n:,} (100.0%)  signals={len(signals):,}\n")
+    sys.stdout.flush()
     return signals
 
 
@@ -449,11 +480,14 @@ def main():
     print("  Building signals...")
     t1 = time.time()
 
+    import json
+    import hashlib
+
     all_builders = {
-        "H1": ("H1: COMPRESSION FADE",         build_h1),
+        "H1": ("H1: COMPRESSION FADE",          build_h1),
         "H3": ("H3: TREND-ALIGNED SWEEP FADE",  build_h3),
         "H4": ("H4: EXTREME CAPITULATION (5%+)", build_h4),
-        "H5": ("H5: H4 + VOLUME FILTER",        build_h5),
+        "H5": ("H5: H4 + VOLUME FILTER",         build_h5),
     }
 
     selected = list(all_builders.keys()) if args.hypothesis=="ALL" else [args.hypothesis]
@@ -461,8 +495,22 @@ def main():
     hyp_args = []
     for key in selected:
         label, builder = all_builders[key]
-        signals = builder(df)
-        print(f"    {key}: {len(signals):,} signals")
+        cache_file = OUTPUT_DIR / f"signals_{key}_{args.start_year}.json"
+        if cache_file.exists():
+            print(f"    {key}: loading cached signals from {cache_file.name}...")
+            with open(cache_file) as f:
+                signals = json.load(f)
+            print(f"    {key}: {len(signals):,} signals (cached)")
+        else:
+            signals = builder(df)
+            print(f"    {key}: {len(signals):,} signals — saving cache...")
+            # Convert numpy types to Python native for JSON serialization
+            signals_clean = [
+                {k: (int(v) if hasattr(v, 'item') else float(v) if isinstance(v, float) else v)
+                 for k, v in s.items()} for s in signals
+            ]
+            with open(cache_file, "w") as f:
+                json.dump(signals_clean, f)
         hyp_args.append((label, signals, df_dict, args.rrr, args.start_year))
 
     print(f"  Signals built in {time.time()-t1:.1f}s")
@@ -471,10 +519,14 @@ def main():
     print(f"  This will take several minutes — check strategy_tester.log for progress")
     print()
 
-    # ── Run hypotheses in parallel ────────────────────────────────────────────
+    # ── Run hypotheses sequentially, simulation parallelized within each ─────
     t2 = time.time()
-    with mp.Pool(processes=min(N_CORES, len(hyp_args))) as pool:
-        outputs = pool.map(run_hypothesis, hyp_args)
+    outputs = []
+    for hyp_arg in hyp_args:
+        print(f"\n  Running {hyp_arg[0]}...")
+        output = run_hypothesis(hyp_arg)
+        outputs.append(output)
+        print(f"  Done in {time.time()-t2:.1f}s")
 
     print(f"  Simulation complete in {time.time()-t2:.1f}s")
 

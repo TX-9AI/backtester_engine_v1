@@ -1,0 +1,153 @@
+======================================================================
+  ETH/USD Strategy Hypothesis Testing — Parallel v1.1
+  2026-06-29 20:38 UTC
+  Balance: $10,000  Position: 20%  Fees: 0.4% RT
+  Train: ≤2021  |  Validate: ≥2022 (out-of-sample)
+======================================================================
+
+======================================================================
+  H4: EXTREME CAPITULATION (5%+)
+======================================================================
+  Total signals: 10,118
+  Train  (≤2021): 8,377
+  Validate (≥2022): 1,741
+
+  ── RRR = 1.5:1 ──
+
+  FULL PERIOD:
+    Trades:        10,118
+    Win rate:      40.2%
+    Avg R:         +0.01
+    Profit factor: 0.69
+    Max drawdown:  100.0%
+    Total return:  -100.0%
+    Final balance: $4
+    Sharpe:        -2.38
+    Exits:         stop=5935  target=3978  timeout=205
+
+  TRAIN ≤2021:
+    Trades:        8,377
+    Win rate:      40.4%
+    Avg R:         +0.01
+    Profit factor: 0.70
+    Max drawdown:  99.8%
+    Total return:  -99.8%
+    Final balance: $21
+    Sharpe:        -2.22
+    Exits:         stop=4937  target=3318  timeout=122
+
+  VALIDATE ≥2022 (out-of-sample):
+    Trades:        1,741
+    Win rate:      39.2%
+    Avg R:         +0.00
+    Profit factor: 0.60
+    Max drawdown:  79.0%
+    Total return:  -79.0%
+    Final balance: $2,102
+    Sharpe:        -3.44
+    Exits:         stop=998  target=660  timeout=83
+
+  ── Annual breakdown at 1.5R ──
+    2018  n=3,507  win=40%  return=-237.3%
+    2019  n= 970  win=44%  return=-64.9%
+    2020  n=1,518  win=38%  return=-139.1%
+    2021  n=2,382  win=41%  return=-164.2%
+    2022  n= 867  win=36%  return=-90.7%
+    2023  n= 148  win=20%  return=-19.6%
+    2024  n= 412  win=44%  return=-39.3%
+    2025  n= 314  win=49%  return=-4.9%
+
+  ── RRR = 2.0:1 ──
+
+  FULL PERIOD:
+    Trades:        10,118
+    Win rate:      34.1%
+    Avg R:         +0.01
+    Profit factor: 0.70
+    Max drawdown:  100.0%
+    Total return:  -100.0%
+    Final balance: $3
+    Sharpe:        -2.24
+    Exits:         stop=6526  target=3265  timeout=327
+
+  TRAIN ≤2021:
+    Trades:        8,377
+    Win rate:      33.9%
+    Avg R:         +0.01
+    Profit factor: 0.71
+    Max drawdown:  99.9%
+    Total return:  -99.9%
+    Final balance: $13
+    Sharpe:        -2.14
+    Exits:         stop=5460  target=2712  timeout=205
+
+  VALIDATE ≥2022 (out-of-sample):
+    Trades:        1,741
+    Win rate:      35.1%
+    Avg R:         +0.05
+    Profit factor: 0.65
+    Max drawdown:  76.6%
+    Total return:  -76.6%
+    Final balance: $2,336
+    Sharpe:        -2.94
+    Exits:         stop=1066  target=553  timeout=122
+
+  ── Annual breakdown at 2.0R ──
+    2018  n=3,507  win=32%  return=-278.4%
+    2019  n= 970  win=39%  return=-61.1%
+    2020  n=1,518  win=34%  return=-94.4%
+    2021  n=2,382  win=34%  return=-215.5%
+    2022  n= 867  win=32%  return=-81.0%
+    2023  n= 148  win=17%  return=-18.9%
+    2024  n= 412  win=41%  return=-34.7%
+    2025  n= 314  win=44%  return=-9.0%
+
+  ── RRR = 3.0:1 ──
+
+  FULL PERIOD:
+    Trades:        10,118
+    Win rate:      26.6%
+    Avg R:         +0.01
+    Profit factor: 0.72
+    Max drawdown:  100.0%
+    Total return:  -100.0%
+    Final balance: $2
+    Sharpe:        -2.02
+    Exits:         stop=7261  target=2334  timeout=523
+
+  TRAIN ≤2021:
+    Trades:        8,377
+    Win rate:      25.9%
+    Avg R:         -0.01
+    Profit factor: 0.72
+    Max drawdown:  99.9%
+    Total return:  -99.9%
+    Final balance: $7
+    Sharpe:        -1.98
+    Exits:         stop=6103  target=1932  timeout=342
+
+  VALIDATE ≥2022 (out-of-sample):
+    Trades:        1,741
+    Win rate:      29.9%
+    Avg R:         +0.09
+    Profit factor: 0.71
+    Max drawdown:  74.5%
+    Total return:  -72.8%
+    Final balance: $2,722
+    Sharpe:        -2.28
+    Exits:         stop=1158  target=402  timeout=181
+
+  ── Annual breakdown at 3.0R ──
+    2018  n=3,507  win=24%  return=-329.7%
+    2019  n= 970  win=33%  return=-50.8%
+    2020  n=1,518  win=26%  return=-74.0%
+    2021  n=2,382  win=26%  return=-247.1%
+    2022  n= 867  win=24%  return=-97.1%
+    2023  n= 148  win=16%  return=-19.2%
+    2024  n= 412  win=39%  return=-17.5%
+    2025  n= 314  win=41%  return=+5.9%
+
+======================================================================
+  Total runtime: 45.3s
+  Saved: /home/ubuntu/btc-backtester/research/eth_strategy_results.txt
+======================================================================

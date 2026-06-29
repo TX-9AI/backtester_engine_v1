@@ -1,0 +1,186 @@
+======================================================================
+  ETH H4 Trade Anatomy — Wins vs Losses
+  2026-06-29 20:48 UTC
+  3,298 wins  |  6,820 losses  |  RRR=2.0
+======================================================================
+
+======================================================================
+  1. DUMP CHARACTERISTICS — WHAT PRECEDED WINS VS LOSSES
+======================================================================
+
+  ── Move magnitude before entry ──
+    Dump size (%)                       wins=   3.879  losses=   3.275  WIN ▲
+    Dump speed (candles to low)         wins=  23.159  losses=  24.156  WIN ▲
+
+  ── Volume signature ──
+    Peak volume ratio (vs 60-bar avg)   wins=   8.513  losses=   8.881  LOSS ▲
+    Last 5 candle vol ratio             wins=   1.705  losses=   1.789  WIN ▲
+
+  INSIGHT: If peak_vol_ratio is higher for wins, volume spike
+  at the move peak is a genuine institutional signature.
+
+======================================================================
+  2. TRIGGER CANDLE — THE CANDLE AT ENTRY
+======================================================================
+
+  ── Candle structure at entry point ──
+    Body size (% of range)              wins=   0.528  losses=   0.552  WIN ▲
+    Lower wick (% of range)             wins=   0.239  losses=   0.226  WIN ▲
+    Close position (0=low, 1=high)      wins=   0.498  losses=   0.493  WIN ▲
+    Range size (% of price)             wins=   0.012  losses=   0.012  LOSS ▲
+    Bullish trigger candle              wins=   48.8%  losses=   47.6%
+
+  INSIGHT: A large lower wick and high close position on the trigger
+  candle = price already showing reversal. This is the real entry signal.
+
+======================================================================
+  3. EXHAUSTION — WHERE PRICE ACTUALLY TURNED
+======================================================================
+
+  ── How far we entered vs optimal ──
+    Bars to actual exhaustion           wins=  31.079  losses=  47.644  WIN ▲
+    Entry vs exhaustion price (%)       wins=   2.461  losses=   5.269  WIN ▲
+
+  ── Exhaustion candle features ──
+    Exhaustion lower wick               wins=   0.262  losses=   0.255  WIN ▲
+    Exhaustion close position           wins=   0.515  losses=   0.509  WIN ▲
+    Next candle bullish after exh       wins=   50.3%  losses=   48.0%
+    Next candle vol vs exhaustion       wins=   1.470  losses=   1.857  LOSS ▲
+
+  CRITICAL INSIGHT: If wins have higher exhaustion lower wick and
+  higher close position, waiting for the exhaustion candle to CLOSE
+  before entering would dramatically improve win rate.
+
+======================================================================
+  4. POST-ENTRY BEHAVIOR — MAE AND MFE
+======================================================================
+
+  ── Maximum adverse excursion (how far against us before reversal) ──
+    Max adverse move (%)                wins=   2.560  losses=   5.424  WIN ▲
+    MAE as multiple of stop distance    wins=   1.754  losses=   3.796  WIN ▲
+    Max favorable move (%)              wins=   6.745  losses=   3.291  WIN ▲
+
+  INSIGHT: If winning trades still go against us before reversing,
+  our stop is too tight. Widening stops may convert losses to wins.
+
+======================================================================
+  5. OPTIMAL ENTRY — WHAT WAITING WOULD HAVE DONE
+======================================================================
+    Avg entry was 4.34% away from optimal
+    Wins: entry was 2.46% from exhaustion
+    Losses: entry was 5.27% from exhaustion
+
+  If we entered AT the exhaustion candle instead of immediately:
+    Better stop placement would tighten risk by ~4.3%
+    More signals would be filtered (exhaustion candle must confirm)
+
+======================================================================
+  6. TIME-OF-DAY BREAKDOWN
+======================================================================
+
+  ── Win rate by hour (UTC) ──
+    Hour         N    Win%    AvgP&L
+    ────────────────────────────────
+    11:00    363.0   43.8%     0.51% ◄
+    03:00    349.0   43.0%    -0.22% ◄
+    00:00    481.0   42.6%    -0.31% ◄
+    06:00    228.0   42.1%     0.09% ◄
+    22:00    397.0   37.3%     0.12% ◄
+    07:00    227.0   37.0%    -0.13% ◄
+    16:00    789.0   35.2%    -0.43%
+    18:00    411.0   34.5%    -0.46%
+    15:00    520.0   34.4%    -0.16%
+    13:00    465.0   33.1%    -0.46%
+    20:00    630.0   32.7%    -0.39%
+    05:00    322.0   32.3%    -0.54%
+    21:00    549.0   31.7%    -0.58%
+    12:00    526.0   31.0%    -0.68%
+    02:00    272.0   30.9%    -0.20%
+    19:00    452.0   29.4%    -0.75%
+    10:00    344.0   28.8%    -0.66%
+    08:00    263.0   28.5%    -0.75%
+    04:00    413.0   28.3%    -0.40%
+    14:00    700.0   27.6%    -0.89%
+    01:00    319.0   26.6%    -0.59%
+    23:00    313.0   26.2%    -0.91%
+    17:00    424.0   24.1%    -0.77%
+    09:00    361.0   23.8%    -0.74%
+
+======================================================================
+  7. DERIVED ENTRY CRITERIA — WHAT THE DATA SUGGESTS
+======================================================================
+
+  ── Filter A: Strong lower wick on trigger candle (>30% of range) ──
+    With strong wick:   n=3,323  win=33.8%
+    Without:            n=6,795  win=32.0%
+
+  ── Filter B: Close in upper half of candle range ──
+    High close pos:     n=4,973  win=33.3%
+    Low close pos:      n=5,145  win=31.9%
+
+  ── Filter C: High volume spike (>2x average) ──
+    High vol spike:     n=9,819  win=32.7%
+    Normal vol:         n=299  win=30.4%
+
+  ── Filter COMBINED: Wick + close position + volume ──
+    Combined filter:    n=2,943  win=34.3%  (filtered out 7,175 trades)
+    Avg P&L per trade:  -0.38%
+    Best hour:          00:00 UTC
+
+======================================================================
+  8. TOP 20 BEST TRADES — WHAT DID THEY LOOK LIKE?
+======================================================================
+    Date               Dir       Entry     Exit    P&L%  DumpPct  PeakVol  TrigWick
+    ───────────────────────────────────────────────────────────────────────────
+    2021-02-22 14:25   long    1247.26  1759.89   40.70%   59.74%    8.08x     0.02
+    2020-03-12 10:57   short    140.30   117.26   16.02%    0.92%    4.60x     0.03
+    2020-03-12 10:56   short    145.94   124.16   14.53%    0.14%    4.70x     0.58
+    2020-03-12 11:05   short    143.05   122.43   14.02%    1.21%    3.91x     0.00
+    2021-05-19 12:53   short   2163.48  1852.03   14.00%    0.58%    4.16x     0.00
+    2020-03-12 11:04   short    145.67   124.75   13.96%    0.73%    4.01x     0.31
+    2020-03-12 10:55   short    145.98   125.10   13.90%    1.58%    4.84x     0.06
+    2020-03-12 11:06   short    142.16   122.03   13.76%    2.57%    3.85x     0.31
+    2020-03-13 02:43   long     118.89   135.50   13.57%    3.30%    3.26x     0.32
+    2020-03-12 10:54   short    145.08   125.10   13.37%    1.06%    4.97x     0.62
+    2020-03-13 02:42   long     120.90   137.42   13.26%    5.04%    3.30x     0.49
+    2020-03-12 11:07   short    142.00   122.63   13.24%    5.01%    3.78x     0.11
+    2020-03-13 02:41   long     116.43   132.13   13.09%    6.19%    3.46x     0.81
+    2020-03-12 13:45   long     125.07   141.90   13.06%   18.20%    6.11x     0.87
+    2021-05-19 13:22   long    2273.08  2568.16   12.58%   15.08%    5.22x     0.34
+    2021-05-19 13:23   long    2274.71  2569.49   12.56%   14.92%    5.17x     0.22
+    2021-05-19 12:52   short   2167.62  1892.56   12.29%    0.63%    4.27x     0.64
+    2021-05-19 13:21   long    2176.36  2452.14   12.27%   18.67%    5.32x     0.36
+    2020-03-12 11:08   short    142.26   124.32   12.21%    2.21%    3.20x     0.90
+    2020-03-12 13:36   long     125.80   141.26   11.89%   19.40%    6.84x     0.71
+
+======================================================================
+  9. TOP 20 WORST TRADES — WHAT WENT WRONG?
+======================================================================
+    Date               Dir       Entry     Exit    P&L%  DumpPct  PeakVol  TrigWick
+    ───────────────────────────────────────────────────────────────────────────
+    2021-02-22 14:26   short   1100.00  1608.04  -46.59%    0.51%    7.49x     0.38
+    2021-02-22 14:27   long    1550.00   978.62  -37.26%   59.54%    7.01x     0.45
+    2021-02-22 14:23   short    912.62  1222.07  -34.31%    0.06%    8.51x     0.00
+    2021-02-22 14:24   long    1412.00  1029.18  -27.51%   59.91%    8.44x     0.30
+    2021-02-22 14:22   short   1100.00  1360.24  -24.06%    0.59%    8.44x     0.00
+    2021-02-22 14:21   short   1109.21  1301.38  -17.72%    0.30%    8.42x     0.95
+    2021-02-22 14:20   short   1010.62  1177.32  -16.89%    0.22%    8.73x     0.34
+    2021-02-22 14:19   short    995.15  1129.42  -13.89%    0.11%    9.47x     0.00
+    2021-05-19 13:01   long    2236.03  2002.47  -10.85%   28.83%    3.71x     0.38
+    2021-05-19 13:02   short   2220.40  2452.31  -10.84%    1.25%    3.68x     0.31
+    2021-05-19 13:03   short   2200.00  2426.67  -10.70%    1.93%    3.61x     0.25
+    2021-05-19 12:57   short   2148.48  2365.88  -10.52%    1.26%    3.80x     0.36
+    2021-05-19 12:58   short   2253.07  2480.70  -10.50%    1.05%    3.77x     0.18
+    2021-05-19 13:04   short   2192.83  2413.67  -10.47%    1.94%    6.79x     0.00
+    2021-05-19 12:56   short   2087.59  2292.46  -10.21%    1.23%    3.90x     0.00
+    2021-05-19 12:59   long    2338.00  2109.35  -10.18%   29.95%    3.75x     0.54
+    2021-05-19 13:00   long    2300.00  2076.36  -10.12%   29.12%    3.73x     0.05
+    2020-08-02 04:42   short    346.12   379.65  -10.09%    0.64%   10.83x     0.52
+    2021-05-19 12:55   short   1940.02  2121.75   -9.77%    1.14%    3.99x     0.00
+    2020-03-12 10:59   short    133.00   145.12   -9.51%    0.23%    4.50x     0.00
+
+======================================================================
+  Complete. 18.2s
+  Saved: /home/ubuntu/btc-backtester/research/eth_anatomy_results.txt
+  CSVs: eth_anatomy_wins.csv  eth_anatomy_losses.csv
+======================================================================

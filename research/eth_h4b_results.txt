@@ -1,0 +1,214 @@
+======================================================================
+  ETH H4b — Refined Capitulation Strategy Results
+  2026-06-29 20:53 UTC
+  Balance: $10,000  |  Position: 20%  |  Fees: 0.4% RT
+  Filters: hours=[0, 1, 2]...  dump>=4.0%  exhaust<=35bars  wick>25%
+======================================================================
+
+  Base signals:  10,118
+  Accepted:      445  (4.4% pass rate)
+  Filtered hour: 6,501
+  Filtered dump: 3,172
+  No exhaustion: 0
+
+======================================================================
+  RRR = 1.5:1
+======================================================================
+
+  ── FULL PERIOD ──
+    Trades:        445
+    Win rate:      47.0%
+    Avg R:         +0.17
+    Profit factor: 1.13
+    Max drawdown:  46.2%
+    Total return:  +24.2%
+    Final balance: $12,417
+    Sharpe:        0.77
+    Exits:         stop=182  target=160  timeout=103
+
+  ── TRAIN ≤2021 ──
+    Trades:        336
+    Win rate:      46.1%
+    Avg R:         +0.17
+    Profit factor: 1.16
+    Max drawdown:  46.2%
+    Total return:  +25.4%
+    Final balance: $12,535
+    Sharpe:        0.96
+    Exits:         stop=146  target=131  timeout=59
+
+  ── VALIDATE ≥2022 (out-of-sample) ──
+    Trades:        109
+    Win rate:      49.5%
+    Avg R:         +0.16
+    Profit factor: 0.98
+    Max drawdown:  15.6%
+    Total return:  -0.9%
+    Final balance: $9,906
+    Sharpe:        -0.12
+    Exits:         timeout=44  stop=36  target=29
+
+  ── Annual breakdown ──
+    2018  n=  64  win=50%  return=+1.8%
+    2019  n=   7  win=43%  return=-0.5%
+    2020  n= 177  win=48%  return=+45.7%
+    2021  n=  88  win=40%  return=-21.8%
+    2022  n=  22  win=50%  return=-0.9%
+    2023  n=  15  win=13%  return=+0.5%
+    2024  n=  48  win=48%  return=-8.7%
+    2025  n=  24  win=75%  return=+8.5%
+
+  ── By hour (UTC) ──
+    11:00  n=80.0  win=56.2%  avg=2.09%
+    05:00  n=50.0  win=54.0%  avg=0.98%
+    02:00  n=66.0  win=53.0%  avg=1.50%
+    12:00  n=57.0  win=50.9%  avg=-1.24%
+    00:00  n=65.0  win=49.2%  avg=-0.79%
+    10:00  n=17.0  win=47.1%  avg=2.80%
+    03:00  n=47.0  win=36.2%  avg=-0.67%
+    04:00  n=26.0  win=26.9%  avg=-1.22%
+    01:00  n=37.0  win=24.3%  avg=-1.51%
+
+  ── By direction ──
+    long    n= 258  win=43%  return=-11.7%
+    short   n= 187  win=52%  return=+36.2%
+
+======================================================================
+  RRR = 2.0:1
+======================================================================
+
+  ── FULL PERIOD ──
+    Trades:        445
+    Win rate:      44.5%
+    Avg R:         +0.23
+    Profit factor: 1.20
+    Max drawdown:  50.1%
+    Total return:  +46.0%
+    Final balance: $14,599
+    Sharpe:        1.16
+    Exits:         stop=190  target=131  timeout=124
+
+  ── TRAIN ≤2021 ──
+    Trades:        336
+    Win rate:      42.9%
+    Avg R:         +0.24
+    Profit factor: 1.24
+    Max drawdown:  50.1%
+    Total return:  +46.8%
+    Final balance: $14,685
+    Sharpe:        1.41
+    Exits:         stop=154  target=110  timeout=72
+
+  ── VALIDATE ≥2022 (out-of-sample) ──
+    Trades:        109
+    Win rate:      49.5%
+    Avg R:         +0.20
+    Profit factor: 0.99
+    Max drawdown:  15.6%
+    Total return:  -0.6%
+    Final balance: $9,941
+    Sharpe:        -0.05
+    Exits:         timeout=52  stop=36  target=21
+
+  ── Annual breakdown ──
+    2018  n=  64  win=41%  return=-3.8%
+    2019  n=   7  win=29%  return=-1.6%
+    2020  n= 177  win=48%  return=+76.4%
+    2021  n=  88  win=35%  return=-29.4%
+    2022  n=  22  win=50%  return=+1.0%
+    2023  n=  15  win=13%  return=+0.5%
+    2024  n=  48  win=48%  return=-12.6%
+    2025  n=  24  win=75%  return=+10.8%
+
+  ── By hour (UTC) ──
+    11:00  n=80.0  win=53.8%  avg=3.04%
+    02:00  n=66.0  win=53.0%  avg=2.35%
+    00:00  n=65.0  win=49.2%  avg=-0.59%
+    12:00  n=57.0  win=49.1%  avg=-1.60%
+    10:00  n=17.0  win=47.1%  avg=2.20%
+    05:00  n=50.0  win=44.0%  avg=0.20%
+    03:00  n=47.0  win=31.9%  avg=-0.44%
+    01:00  n=37.0  win=24.3%  avg=-1.74%
+    04:00  n=26.0  win=23.1%  avg=-0.92%
+
+  ── By direction ──
+    long    n= 258  win=40%  return=-8.9%
+    short   n= 187  win=51%  return=+50.4%
+
+======================================================================
+  RRR = 3.0:1
+======================================================================
+
+  ── FULL PERIOD ──
+    Trades:        445
+    Win rate:      37.5%
+    Avg R:         +0.15
+    Profit factor: 1.04
+    Max drawdown:  54.2%
+    Total return:  +5.4%
+    Final balance: $10,541
+    Sharpe:        0.25
+    Exits:         stop=211  timeout=161  target=73
+
+  ── TRAIN ≤2021 ──
+    Trades:        336
+    Win rate:      34.8%
+    Avg R:         +0.16
+    Profit factor: 1.05
+    Max drawdown:  52.5%
+    Total return:  +5.6%
+    Final balance: $10,557
+    Sharpe:        0.29
+    Exits:         stop=171  timeout=103  target=62
+
+  ── VALIDATE ≥2022 (out-of-sample) ──
+    Trades:        109
+    Win rate:      45.9%
+    Avg R:         +0.14
+    Profit factor: 1.01
+    Max drawdown:  15.7%
+    Total return:  -0.1%
+    Final balance: $9,985
+    Sharpe:        0.05
+    Exits:         timeout=58  stop=40  target=11
+
+  ── Annual breakdown ──
+    2018  n=  64  win=20%  return=-22.5%
+    2019  n=   7  win=29%  return=-1.6%
+    2020  n= 177  win=42%  return=+63.8%
+    2021  n=  88  win=31%  return=-30.8%
+    2022  n=  22  win=32%  return=-4.0%
+    2023  n=  15  win=13%  return=+0.5%
+    2024  n=  48  win=48%  return=-13.4%
+    2025  n=  24  win=75%  return=+17.2%
+
+  ── By hour (UTC) ──
+    12:00  n=57.0  win=49.1%  avg=-1.55%
+    02:00  n=66.0  win=48.5%  avg=3.10%
+    10:00  n=17.0  win=47.1%  avg=0.37%
+    00:00  n=65.0  win=41.5%  avg=-0.69%
+    11:00  n=80.0  win=40.0%  avg=1.56%
+    05:00  n=50.0  win=32.0%  avg=-0.84%
+    03:00  n=47.0  win=29.8%  avg=0.41%
+    01:00  n=37.0  win=24.3%  avg=-1.16%
+    04:00  n=26.0  win=3.8%  avg=-3.51%
+
+  ── By direction ──
+    long    n= 258  win=36%  return=-3.5%
+    short   n= 187  win=40%  return=+12.7%
+
+======================================================================
+  H4 vs H4b COMPARISON (at 2.0R)
+======================================================================
+
+  H4 (original):
+    Trades:      10,118  Win: 34.1%  Return: -100%  MaxDD: 100%
+
+  H4b (refined):
+    Trades:      445  Win: 44.5%  Return: +46.0%  MaxDD: 50.1%
+    Win rate improvement: +10.4%
+
+======================================================================
+  Total runtime: 3.6s
+  Saved: /home/ubuntu/btc-backtester/research/eth_h4b_results.txt
+======================================================================
